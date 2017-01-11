@@ -345,9 +345,21 @@ def get_hop(pb_id, tstp, hop_result):
             if 'x' not in mes:
                 mes['x'] = []
             mes['x'].append(TIMEOUT_ERR)
+        else:
+            if IP_ERR not in mes:
+                mes[IP_ERR] = []
+            if 'err' in rec:
+                mes[IP_ERR].append(MES_ERR)
+                logging.warning(
+                    "%d had traceroute measurement error at %s: %s" % (pb_id, tt.epoch_to_string(tstp), rec['err']))
+            else:
+                mes[IP_ERR].append(UNKNOWN_ERR)
+                logging.warning(
+                    "%d had UNKNOWN traceroute measurement error at %s: No from, err, x is present" % (pb_id, tt.epoch_to_string(tstp)))
 
+    # get the IP hop with most presence in one traceroute measurement
     ip_hop = sorted(mes.items(), key=lambda s: len(s[1]), reverse=True)[0][0]
-    rtt = min_pos(mes[ip_hop])
+    rtt = min_pos(mes[ip_hop])  # get non-negative RTT of that hop
     return ip_hop, rtt
 
 

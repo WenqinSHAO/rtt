@@ -43,7 +43,7 @@ def mes_fetcher_wrapper(args):
     try:
         return mes_fetcher(*args)
     except Exception:
-        logging.critical("Exception in worker:")
+        logging.critical("Exception in worker.")
         traceback.print_exc()
         raise
 
