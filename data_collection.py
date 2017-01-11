@@ -122,7 +122,7 @@ def main():
     task = ((pb_tagv4, msmv4, 'v4'), (pb_tagv6, msmv6, 'v6'))
     for pbs, msm, tid in task:
         # cut the entire list into chunks, each process will work on a chunk
-        id_chunks = [pbs[i:i+100] for i in xrange(0, len(pbs), 100)]
+        id_chunks = [pbs[i:i+20] for i in xrange(0, len(pbs), 20)]
         chunk_count = len(id_chunks)
         # probe id to chunk id mapping
         with open(os.path.join(data_dir, "pb_chunk_index_%s.csv" % tid), 'w') as fp:
