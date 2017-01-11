@@ -321,6 +321,24 @@ def get_hop(pb_id, tstp, hop_result):
         IP hop is the IP address that present the most times
         RTT is the smallest valid RTT associated with the IP hop
         103.7.251.161, 0.457
+
+    NOTE:
+        when there is error in traceroute measurement, the key for error code can both be 'err' or 'error'
+        the later is relatively rare, but not impossible an example follows:
+        {u'af': 6, u'dst_addr': u'2001:500:84::b', u'dst_name': u'2001:500:84::b', u'endtime': 1483229317,
+        u'from': u'2a02:587:801b:7f00:ea94:f6ff:fe48:c920',
+        u'fw': 4740,
+        u'lts': 279645,
+        u'msm_id': 6010,
+        u'msm_name': u'Traceroute',
+        u'paris_id': 9,
+        u'prb_id': 23450,
+        u'proto': u'UDP',
+        u'result': [{u'hop': 1, u'result': [{u'error': u'bind failed: Invalid argument'}]}],
+        u'size': 40,
+        u'src_addr': u'fe80::ea94:f6ff:fe48:c920',
+        u'timestamp': 1483229317,
+        u'type': u'traceroute'}
     """
     mes = dict()
     for rec in hop_result:
@@ -352,6 +370,10 @@ def get_hop(pb_id, tstp, hop_result):
                 mes[IP_ERR].append(MES_ERR)
                 logging.warning(
                     "%d had traceroute measurement error at %s: %s" % (pb_id, tt.epoch_to_string(tstp), rec['err']))
+            elif 'error' in rec:
+                mes[IP_ERR].append(MES_ERR)
+                logging.warning(
+                    "%d had traceroute measurement error at %s: %s" % (pb_id, tt.epoch_to_string(tstp), rec['error']))
             else:
                 mes[IP_ERR].append(UNKNOWN_ERR)
                 logging.warning(
