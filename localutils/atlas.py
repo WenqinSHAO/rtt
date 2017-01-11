@@ -30,14 +30,17 @@ def get_pb(pb_tag="system-v3", is_anchor=False, date=None, asn=None):
     probes = ProbeRequest(**filters)
     pb_id = []
     for pb in probes:
-        if date:
-            if pb["first_connected"] and pb["first_connected"] <= date:
-                pb_id.append((pb["id"], pb['asn_v4'], pb['asn_v6'],
-                              pb['prefix_v4'], pb['prefix_v6'], pb['is_anchor'], pb['country_code']))
+        if date and pb["first_connected"] > date:
+            pass
         else:
+            # get all the system tags
+            tags = []
+            for d in pb["tags"]:
+                if 'system-' in d["slug"]:
+                    tags.append(str(d["slug"]))
+            tags = tuple(tags)
             pb_id.append((pb["id"], pb['asn_v4'], pb['asn_v6'],
-                          pb['prefix_v4'], pb['prefix_v6'], pb['is_anchor'], pb['country_code']))
-
+                          pb['prefix_v4'], pb['prefix_v6'], pb['is_anchor'], pb['country_code'], tags))
     return pb_id
 
 
@@ -64,6 +67,7 @@ def get_ms_by_pb_msm_id(msm_id, pb_id, start, end):
         return group_by_probe(results)
 
 
+# TODO: if elif else structure kind of redundant
 def group_by_probe(results):
     """ Given a list of Atlas measurements in JSON format, parse them and group them by probe id
     The original JSON format of measurement format is very lengthy and takes place.
@@ -101,9 +105,12 @@ def group_by_probe(results):
         elif type_ == 'traceroute':
             parsed_mes = parser_of_trace(mes)
         else:
+            parsed_mes = dict()
             logging.warning("%d had unsupported type of measurements %s" % (probe_id, str(type_)))
+
         for k in parsed_mes.keys():
             by_probe[probe_id][k].append(parsed_mes[k])
+
     return by_probe
 
 
@@ -223,19 +230,17 @@ def rtt_of_ping(pb_id, tstp, results):
     rtt_in_res = []
     for res in results:
         for key, value in res.items():
-            if key == 'error':
-                if 'unreachable' in value:
-                    rtt_in_res.append(MES_ERR)
-                else:
+            if key == 'rtt':
+                rtt_in_res.append(float(value))
+            elif key == 'error':
+                if 'unreachable' not in value:
                     logging.warning(
-                        "%d had measurement error other than unreachable at %s" % (pb_id, tt.epoch_to_string(tstp)))
-                    rtt_in_res.append(MES_ERR)
+                        "%d had measurement error other than unreachable at %s : %s" % (pb_id, tt.epoch_to_string(tstp), value))
+                rtt_in_res.append(MES_ERR)
             elif key == 'x':
                 rtt_in_res.append(TIMEOUT_ERR)
-            elif key == 'rtt':
-                rtt_in_res.append(float(value))
             else:
-                logging.warning("%d had unexpected key %s in results at %s" % (pb_id, key, tt.epoch_to_string(tstp)))
+                logging.debug("%d had optional fields %s:%s in results at %s" % (pb_id, key, value, tt.epoch_to_string(tstp)))
                 rtt_in_res.append(UNKNOWN_ERR)
     return rtt_in_res
 
@@ -349,6 +354,12 @@ def get_hop(pb_id, tstp, hop_result):
 def min_pos(x):
     """ return the smallest positive number in a given numeric list;
     in the case all values are negative, return the biggest one (generally the err code for timeout)
+
+    Args:
+        x (list of numeric)
+
+    Returns:
+        numeric
     """
     pos_x = [i for i in x if i > 0]
     if len(pos_x):

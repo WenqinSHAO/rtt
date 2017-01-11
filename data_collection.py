@@ -9,10 +9,26 @@ import itertools
 
 
 def mes_fetcher(chunk_id, msm, probe_list, start, end, suffix, save_dir):
+    """" worker for measurement retrieval
+
+    it fetches the measurement results for a given chunk/list of probes,
+    and stores them in json format file, where key is the probe id, value is a dict
+    if ping: dict(epoch=[int], min_rtt=[float], all_rtt=[tuple of float])
+    if connection: dict(connect=[int], disconnect=[int])
+    if traceroute: dict(epoch=[int], paris_id=[int], path=[tuple of hops])
+
+    Args:
+        chunk_id (int): the sequential/ID for a chunk of probe IDs
+        msm (int): the ID of measurements meant to be feteched
+        probe_list (list of int): a chunk of probe IDs
+        start (int): epoch time for the beginning of observation window
+        end (int): epoch time for the end of observation window
+        suffix (string): a string to identify the measurement
+        save_dir (string): where the fetched measurement shall be saved
+    """
     t1 = time.time()
     mes = at.get_ms_by_pb_msm_id(msm_id=msm, pb_id=probe_list, start=start, end=end)
     if mes:
-        # store measurements with raw time stamps
         with open(os.path.join(save_dir, '%d_%s.json' % (chunk_id, suffix)), 'w') as fp:
             json.dump(mes, fp)
     t2 = time.time()
@@ -20,6 +36,10 @@ def mes_fetcher(chunk_id, msm, probe_list, start, end, suffix, save_dir):
 
 
 def mes_fetcher_wrapper(args):
+    """ a wrapper for mes_fetcher
+
+    multiprocessing.Pool.map() doesn't take multiple args, therefore this wrapper
+    """
     return mes_fetcher(*args)
 
 
@@ -50,8 +70,10 @@ def main():
     try:
         start = config.get("collection", "start")
         end = config.get("collection", "end")
-        msm = config.get("collection", "msm").split(',')  # multiple msm id can be separated by comma
-        msm = [int(i.strip()) for i in msm]  # remove the whitespaces and convert to int, could have ValueError
+        msmv4 = config.get("collection", "msmv4").split(',')  # multiple msm id can be separated by comma
+        msmv4 = [int(i.strip()) for i in msmv4]  # remove the whitespaces and convert to int, could have ValueError
+        msmv6 = config.get("collection", "msmv6").split(',')  # do the same for IPv6 measurements
+        msmv6 = [int(i.strip()) for i in msmv6]
     except (ConfigParser.NoSectionError, ConfigParser.NoOptionError, ValueError):
         logging.critical("config for data collection is not right.")
         return
@@ -65,26 +87,53 @@ def main():
 
     # save probe meta info
     with open(os.path.join(data_dir, "pb.csv"), 'w') as fp:
-        fp.write("probe_id,asn_v4,asn_v6,prefix_v4,prefix_v6,is_anchor,country_code\n")
+        fp.write("probe_id;asn_v4;asn_v6;prefix_v4;prefix_v6;is_anchor;country_code;system-tags\n")
         for tup in probes:
-            fp.write(','.join([str(i) for i in tup]) + '\n')
+            fp.write(';'.join([str(i) for i in tup]) + '\n')
 
-    # select only probe ids with not None IPv4 ASN or prefixes
-    pb_id = [i[0] for i in probes if (i[2] is not None and i[3] is not None)]
-    logging.info("%d probes with not-None v4 ASN and prefixes will be considered in data collection." % len(pb_id))
+    # filter probes with system tags or with network attributes such as ASN and prefixes
+    pb_netv4 = [i[0] for i in probes if (i[1] is not None and i[3] is not None)]
+    pb_tagv4 = [i[0] for i in probes if 'system-ipv4-works' in i[-1]]
+    pb_netv6 = [i[0] for i in probes if (i[2] is not None and i[4] is not None)]
+    pb_tagv6 = [i[0] for i in probes if 'system-ipv6-works' in i[-1]]
 
-    # collect measurement for all the mid configured
-    for mid in msm:
-        t1 = time.time()
-        id_chunks = [pb_id[i:i+100] for i in xrange(0, len(pb_id), 100)]
+    # compare the two ways of filtering
+    logging.info("%d/%d probes with not-None v4 ASN and prefixes." % (len(pb_netv4), len(probes)))
+    logging.info("%d/%d probes with system-ipv4-works." % (len(pb_tagv4), len(probes)))
+    logging.info("%d/%d probes with not-None v6 ASN and prefixes." % (len(pb_netv6), len(probes)))
+    logging.info("%d/%d probes with system-ipv6-works." % (len(pb_tagv6), len(probes)))
+
+    logging.info("%d v4 net & tag" % len(set(pb_netv4).intersection(set(pb_tagv4))))
+    logging.info("%d v4 net - tag" % len(set(pb_netv4).difference(set(pb_tagv4))))
+    logging.info("%d v4 tag - net" % len(set(pb_tagv4).difference(set(pb_netv4))))
+
+    logging.info("%d v6 net & tag" % len(set(pb_netv6).intersection(set(pb_tagv6))))
+    logging.info("%d v6 net - tag" % len(set(pb_netv6).difference(set(pb_tagv6))))
+    logging.info("%d v6 tag - net" % len(set(pb_tagv6).difference(set(pb_netv6))))
+
+    # collect measurements
+    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    # v4 probes for v4 measurements
+    task = ((pb_tagv4, msmv4, 'v4'), (pb_tagv6, msmv6, 'v6'))
+    for pbs, msm, tid in task:
+        # cut the entire list into chunks, each process will work on a chunk
+        id_chunks = [pbs[i:i+100] for i in xrange(0, len(pbs), 100)]
         chunk_count = len(id_chunks)
-        pool = multiprocessing.Pool(multiprocessing.cpu_count())
-        pool.map(mes_fetcher_wrapper,
-                 itertools.izip(xrange(chunk_count), itertools.repeat(mid),
-                                id_chunks, itertools.repeat(start), itertools.repeat(end),
-                                itertools.repeat(str(mid)), itertools.repeat(data_dir)))
-        t2 = time.time()
-        logging.info("Measurements fetched in %d sec." % (t2-t1))
+        # probe id to chunk id mapping
+        with open(os.path.join(data_dir, "pb_chunk_index_%s.csv" % tid), 'w') as fp:
+            fp.write("probe_id;chunk_id\n")
+            for chunk_id, probe_list in enumerate(id_chunks):
+                for pb in probe_list:
+                    fp.write("%d;%d\n" % (pb, chunk_id))
+        # iterate over all measurement ids in this task, v4 or v6
+        for mid in msm:
+            t1 = time.time()
+            pool.map(mes_fetcher_wrapper,
+                     itertools.izip(xrange(chunk_count), itertools.repeat(mid),
+                                    id_chunks, itertools.repeat(start), itertools.repeat(end),
+                                    itertools.repeat(str(mid)), itertools.repeat(data_dir)))
+            t2 = time.time()
+            logging.info("%s Measurements %d fetched in %d sec." % (tid, mid, (t2-t1)))
 
 
 if __name__ == '__main__':
