@@ -6,7 +6,7 @@ import multiprocessing
 import ConfigParser
 import logging
 import itertools
-
+import traceback
 
 def mes_fetcher(chunk_id, msm, probe_list, start, end, suffix, save_dir):
     """" worker for measurement retrieval
@@ -40,7 +40,12 @@ def mes_fetcher_wrapper(args):
 
     multiprocessing.Pool.map() doesn't take multiple args, therefore this wrapper
     """
-    return mes_fetcher(*args)
+    try:
+        return mes_fetcher(*args)
+    except Exception:
+        logging.critical("Exception in worker:")
+        traceback.print_exc()
+        raise
 
 
 def main():
@@ -112,7 +117,7 @@ def main():
     logging.info("%d v6 tag - net" % len(set(pb_tagv6).difference(set(pb_netv6))))
 
     # collect measurements
-    pool = multiprocessing.Pool(multiprocessing.cpu_count())
+    pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
     # v4 probes for v4 measurements
     task = ((pb_tagv4, msmv4, 'v4'), (pb_tagv6, msmv6, 'v6'))
     for pbs, msm, tid in task:
