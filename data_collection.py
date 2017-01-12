@@ -7,8 +7,11 @@ import ConfigParser
 import logging
 import itertools
 import traceback
+import argparse
+from ast import literal_eval
 
-def mes_fetcher(chunk_id, msm, probe_list, start, end, suffix, save_dir):
+
+def mes_fetcher(chunk_id, msm, probe_list, start, end, suffix, save_dir, fromfile=False):
     """" worker for measurement retrieval
 
     it fetches the measurement results for a given chunk/list of probes,
@@ -19,13 +22,30 @@ def mes_fetcher(chunk_id, msm, probe_list, start, end, suffix, save_dir):
 
     Args:
         chunk_id (int): the sequential/ID for a chunk of probe IDs
-        msm (int): the ID of measurements meant to be feteched
+        msm (int): the ID of measurements meant to be fetched
         probe_list (list of int): a chunk of probe IDs
         start (int): epoch time for the beginning of observation window
         end (int): epoch time for the end of observation window
         suffix (string): a string to identify the measurement
         save_dir (string): where the fetched measurement shall be saved
+        fromfile (bool): if set to true, the worker will check if the same file exists and contains the same probe ids
     """
+
+    save_file = os.path.join(save_dir, '%d_%s.json' % (chunk_id, suffix))
+
+    if fromfile:
+        if os.path.isfile(save_file):
+            with open(save_file, 'r') as fp:
+                try:
+                    saved_probes = [literal_eval(i) for i in json.load(fp).keys()]
+                except ValueError:
+                    logging.warning("decoding %s failed." % save_file)
+                    saved_probes = []
+                if set(saved_probes) == set(probe_list):
+                    logging.info(
+                        "chunk %d skipped, as %s exists already and contains same probe IDs." % (chunk_id, save_file))
+                    return
+    # for all the other cases, download measurements
     t1 = time.time()
     mes = at.get_ms_by_pb_msm_id(msm_id=msm, pb_id=probe_list, start=start, end=end)
     if mes:
@@ -46,6 +66,38 @@ def mes_fetcher_wrapper(args):
         logging.critical("Exception in worker.")
         traceback.print_exc()
         raise
+
+
+def read_probe(f):
+    """ read data/pb.csv file
+
+    Args:
+        f (string): path to file, normally should be data/pb.csv
+
+    Returns:
+        probes (list of tuple): compatible format as the return of get_probe in localutils.atlas
+    """
+    probes = []
+    with open(f, 'r') as fp:
+        for i, line in enumerate(fp):
+            if i > 0:
+                probes.append(tuple([type_convert(i) for i in line.split(";")]))
+    return probes
+
+
+def type_convert(s):
+    """ convert string in data/pb.csv to corresponding types
+
+    Args:
+        s (string): could be "1124", "US", "None", "True", "12.12.34.56/24", "('da', 'cd', 'ef')"
+
+    Returns:
+        "1124" -> 1124; "None" -> None; "US" -> US; "('da', 'cd', 'ef')" -> ('da', 'cd', 'ef')
+    """
+    try:
+        return literal_eval(s)
+    except (SyntaxError, ValueError):
+        return s
 
 
 def main():
@@ -83,18 +135,27 @@ def main():
         logging.critical("config for data collection is not right.")
         return
 
-    # fetch probes/anchors and their meta data
-    t1 = time.time()
-    probes = at.get_pb(date=tt.string_to_epoch(start))
-    probes.extend(at.get_pb(is_anchor=True, date=tt.string_to_epoch(start)))
-    t2 = time.time()
-    logging.info("Probe query finished in %d sec." % (t2-t1))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", "--fromfile",
+                        help="read ./data/pb.csv for probes and "
+                             "only fetch measurements not yet present in the repository.",
+                        action="store_true")
+    args = parser.parse_args()
+    if args.fromfile:
+        probes = read_probe(os.path.join(data_dir, "pb.csv"))
+    else:
+        # fetch probes/anchors and their meta data
+        t1 = time.time()
+        probes = at.get_pb(date=tt.string_to_epoch(start))
+        probes.extend(at.get_pb(is_anchor=True, date=tt.string_to_epoch(start)))
+        t2 = time.time()
+        logging.info("Probe query finished in %d sec." % (t2-t1))
 
-    # save probe meta info
-    with open(os.path.join(data_dir, "pb.csv"), 'w') as fp:
-        fp.write("probe_id;asn_v4;asn_v6;prefix_v4;prefix_v6;is_anchor;country_code;system-tags\n")
-        for tup in probes:
-            fp.write(';'.join([str(i) for i in tup]) + '\n')
+        # save probe meta info
+        with open(os.path.join(data_dir, "pb.csv"), 'w') as fp:
+            fp.write("probe_id;asn_v4;asn_v6;prefix_v4;prefix_v6;is_anchor;country_code;system-tags\n")
+            for tup in probes:
+                fp.write(';'.join([str(i) for i in tup]) + '\n')
 
     # filter probes with system tags or with network attributes such as ASN and prefixes
     pb_netv4 = [i[0] for i in probes if (i[1] is not None and i[3] is not None)]
@@ -136,7 +197,8 @@ def main():
             pool.map(mes_fetcher_wrapper,
                      itertools.izip(xrange(chunk_count), itertools.repeat(mid),
                                     id_chunks, itertools.repeat(start), itertools.repeat(end),
-                                    itertools.repeat(str(mid)), itertools.repeat(data_dir)))
+                                    itertools.repeat(str(mid)), itertools.repeat(data_dir),
+                                    itertools.repeat(args.fromfile)))
             t2 = time.time()
             logging.info("%s Measurements %d fetched in %d sec." % (tid, mid, (t2-t1)))
 
