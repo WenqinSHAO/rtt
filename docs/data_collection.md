@@ -1,5 +1,5 @@
 # Data collection
-This document explains how measurements from [RIPE Atlas](https://atlas.ripe.net) in this project.
+This document explains how measurements from [RIPE Atlas](https://atlas.ripe.net) are collected in this project.
 ## Usage
 ```
 $ python data_collection.py --help
