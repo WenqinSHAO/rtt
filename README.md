@@ -1,4 +1,3 @@
 # What is it about
-# Code organisation
 # How to use it
-# Dev log
+[Collecting measurement from RIPE Atlas](docs/data_collection.md)
