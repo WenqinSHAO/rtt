@@ -141,6 +141,7 @@ def main():
                              "only fetch measurements not yet present in the repository.",
                         action="store_true")
     args = parser.parse_args()
+
     if args.fromfile:
         probes = read_probe(os.path.join(data_dir, "pb.csv"))
     else:

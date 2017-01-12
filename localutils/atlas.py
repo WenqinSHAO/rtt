@@ -87,30 +87,31 @@ def group_by_probe(results):
     """
     by_probe = dict()
     for mes in results:
-        probe_id = mes.get('prb_id', -1)
-        type_ = mes.get('type', None)
-        if probe_id not in by_probe:
+        if isinstance(mes, dict):
+            probe_id = mes.get('prb_id', -1)
+            type_ = mes.get('type', None)
+            if probe_id not in by_probe:
+                if type_ == 'ping':
+                    by_probe[probe_id] = dict(epoch=[], min_rtt=[], all_rtt=[])
+                elif type_ == 'connection':
+                    by_probe[probe_id] = dict(connect=[], disconnect=[])
+                elif type_ == 'traceroute':
+                    by_probe[probe_id] = dict(epoch=[], paris_id=[], path=[])
+                else:
+                    logging.warning("%d had unsupported type of measurements %s" % (probe_id, str(type_)))
             if type_ == 'ping':
-                by_probe[probe_id] = dict(epoch=[], min_rtt=[], all_rtt=[])
+                parsed_mes = parser_of_ping(mes)
             elif type_ == 'connection':
-                by_probe[probe_id] = dict(connect=[], disconnect=[])
+                parsed_mes = parser_of_connection(mes)
             elif type_ == 'traceroute':
-                by_probe[probe_id] = dict(epoch=[], paris_id=[], path=[])
+                parsed_mes = parser_of_trace(mes)
             else:
+                parsed_mes = dict()
                 logging.warning("%d had unsupported type of measurements %s" % (probe_id, str(type_)))
-        if type_ == 'ping':
-            parsed_mes = parser_of_ping(mes)
-        elif type_ == 'connection':
-            parsed_mes = parser_of_connection(mes)
-        elif type_ == 'traceroute':
-            parsed_mes = parser_of_trace(mes)
+            for k in parsed_mes.keys():
+                by_probe[probe_id][k].append(parsed_mes[k])
         else:
-            parsed_mes = dict()
-            logging.warning("%d had unsupported type of measurements %s" % (probe_id, str(type_)))
-
-        for k in parsed_mes.keys():
-            by_probe[probe_id][k].append(parsed_mes[k])
-
+            logging.warning("Encountered an abnormal measurement: %s" % mes)
     return by_probe
 
 
