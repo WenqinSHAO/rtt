@@ -235,7 +235,7 @@ def rtt_of_ping(pb_id, tstp, results):
                 rtt_in_res.append(float(value))
             elif key == 'error':
                 if 'unreachable' not in value:
-                    logging.warning(
+                    logging.debug(
                         "%d had measurement error other than unreachable at %s : %s" % (pb_id, tt.epoch_to_string(tstp), value))
                 rtt_in_res.append(MES_ERR)
             elif key == 'x':
@@ -295,7 +295,7 @@ def hops_of_trace(pb_id, tstp, results):
             hops.append((n_hop, from_ip, rtt))  # normal return cases
         elif 'error' in rec:
             hops.append((n_hop, IP_ERR, MES_ERR))
-            logging.warning("%d had measurement error at %s : %s" % (pb_id, tt.epoch_to_string(tstp), rec['error']))
+            logging.debug("%d had measurement error at %s : %s" % (pb_id, tt.epoch_to_string(tstp), rec['error']))
         else:
             hops.append((n_hop, IP_ERR, UNKNOWN_ERR))
             logging.warning(
@@ -350,11 +350,11 @@ def get_hop(pb_id, tstp, hop_result):
                 mes[rec['from']].append(rec['rtt'])
             elif 'err' in rec:
                 mes[rec['from']].append(MES_ERR)
-                logging.warning(
+                logging.debug(
                         "%d had traceroute measurement error at %s: %s" % (pb_id, tt.epoch_to_string(tstp), rec['err']))
             elif 'late' in rec:
                 mes[rec['from']].append(LATE_ERR)
-                logging.warning(
+                logging.debug(
                         "%d had %d late packets in traceroute at %s" % (pb_id, rec['late'], tt.epoch_to_string(tstp)))
             else:
                 mes[rec['from']].append(UNKNOWN_ERR)
@@ -369,11 +369,11 @@ def get_hop(pb_id, tstp, hop_result):
                 mes[IP_ERR] = []
             if 'err' in rec:
                 mes[IP_ERR].append(MES_ERR)
-                logging.warning(
+                logging.debug(
                     "%d had traceroute measurement error at %s: %s" % (pb_id, tt.epoch_to_string(tstp), rec['err']))
             elif 'error' in rec:
                 mes[IP_ERR].append(MES_ERR)
-                logging.warning(
+                logging.debug(
                     "%d had traceroute measurement error at %s: %s" % (pb_id, tt.epoch_to_string(tstp), rec['error']))
             else:
                 mes[IP_ERR].append(UNKNOWN_ERR)
