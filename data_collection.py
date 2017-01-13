@@ -47,6 +47,7 @@ def mes_fetcher(chunk_id, msm, probe_list, start, end, suffix, save_dir, fromfil
                     return
     # for all the other cases, download measurements
     t1 = time.time()
+    logging.debug("Starting working on chunk %d of measurement %s." % (chunk_id, suffix))
     mes = at.get_ms_by_pb_msm_id(msm_id=msm, pb_id=probe_list, start=start, end=end)
     if mes:
         with open(os.path.join(save_dir, '%d_%s.json' % (chunk_id, suffix)), 'w') as fp:
