@@ -1,4 +1,7 @@
-from localutils import atlas as at, timetools as tt
+"""
+This script collects measurement results from RIPE Atlas and store to data/
+"""
+from localutils import atlas as at, timetools as tt, misc as ms
 import json
 import os
 import time
@@ -69,38 +72,6 @@ def mes_fetcher_wrapper(args):
         raise
 
 
-def read_probe(f):
-    """ read data/pb.csv file
-
-    Args:
-        f (string): path to file, normally should be data/pb.csv
-
-    Returns:
-        probes (list of tuple): compatible format as the return of get_probe in localutils.atlas
-    """
-    probes = []
-    with open(f, 'r') as fp:
-        for i, line in enumerate(fp):
-            if i > 0:
-                probes.append(tuple([type_convert(i) for i in line.split(";")]))
-    return probes
-
-
-def type_convert(s):
-    """ convert string in data/pb.csv to corresponding types
-
-    Args:
-        s (string): could be "1124", "US", "None", "True", "12.12.34.56/24", "('da', 'cd', 'ef')"
-
-    Returns:
-        "1124" -> 1124; "None" -> None; "US" -> US; "('da', 'cd', 'ef')" -> ('da', 'cd', 'ef')
-    """
-    try:
-        return literal_eval(s)
-    except (SyntaxError, ValueError):
-        return s
-
-
 def main():
     # log to data_collection.log file
     logging.basicConfig(filename='data_collection.log', level=logging.DEBUG,
@@ -126,8 +97,8 @@ def main():
 
     # read configurations for data collection
     try:
-        start = config.get("collection", "start")
-        end = config.get("collection", "end")
+        start = tt.string_to_datetime(config.get("collection", "start"))
+        end = tt.string_to_datetime(config.get("collection", "end"))
         msmv4 = config.get("collection", "msmv4").split(',')  # multiple msm id can be separated by comma
         msmv4 = [int(i.strip()) for i in msmv4]  # remove the whitespaces and convert to int, could have ValueError
         msmv6 = config.get("collection", "msmv6").split(',')  # do the same for IPv6 measurements
@@ -144,7 +115,7 @@ def main():
     args = parser.parse_args()
 
     if args.fromfile:
-        probes = read_probe(os.path.join(data_dir, "pb.csv"))
+        probes = ms.read_probe(os.path.join(data_dir, "pb.csv"))
     else:
         # fetch probes/anchors and their meta data
         t1 = time.time()
@@ -207,4 +178,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
