@@ -34,7 +34,7 @@ def type_convert(s):
 
 
 def get_chunk_count(f):
-    """"return the chunk number given a probe to chunk id indexing file
+    """" return the chunk number given a probe to chunk id indexing file
 
     Args:
         f(string): path to probe to chunk id indexing file

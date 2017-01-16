@@ -11,6 +11,10 @@ import numpy as np
 import traceback
 import time
 
+# On RIPE Atlas the timeout for built-in ping is 1sec.
+# https://www.ripe.net/ripe/mail/archives/ripe-atlas/2013-July/000891.html
+TIMEOUT = 1000
+
 
 def rtt(f):
     """ summarize RTT for ping and traceroute measurements with mean, median, etc.
@@ -31,7 +35,7 @@ def rtt(f):
             if 'min_rtt' in rec:
                 rtts = rec.get('min_rtt', None)
                 raw_len = len(rtts) # can be 0
-                pos_rtt = [i for i in rtts if i > 0]
+                pos_rtt = [i for i in rtts if (0 < i < TIMEOUT)]
                 if pos_rtt:
                     reached_len = len(pos_rtt) # if empty array is given, returns nan of type numpy.float64
                     mean_ = np.mean(pos_rtt)
@@ -44,7 +48,7 @@ def rtt(f):
             elif 'path' in rec:
                 paths = rec.get('path', None)
                 raw_len = len(paths)
-                reached_path = [i for i in paths if (i[-1][0] < 255 and i[-1][2] > 0)]
+                reached_path = [i for i in paths if (i[-1][0] < 255 and 0 < i[-1][2] < TIMEOUT)]
                 reached_len = len(reached_path)
                 rtts_last = [i[-1][2] for i in reached_path]
                 if rtts_last:
