@@ -1,7 +1,7 @@
 """
 This script summarizes the per probe RTT for both ping and traceroute measurements
 """
-from localutils import timetools as tt, misc as ms
+from localutils import misc as ms
 import multiprocessing
 import ConfigParser
 import logging
@@ -9,10 +9,22 @@ import os
 import json
 import numpy as np
 import traceback
+import time
 
 
 def rtt(f):
+    """ summarize RTT for ping and traceroute measurements with mean, median, etc.
+
+    Args:
+        f (string): file path to measurement chunks
+
+    Returns:
+        list of tuple
+        [(probe_id (int), raw_len (int/None), reached_len (int/None), mean_ (numpy.float64/None),
+        mid (numpy.float64/None), min_ (numpy.float64/None), max_ (numpy.float64/None), std_ (numpy.float64/None))]
+    """
     summery = []
+    t1 = time.time()
     with open(f, 'r') as fp:
         mes = json.load(fp)
         for pb, rec in mes.items():
@@ -47,10 +59,13 @@ def rtt(f):
                 logging.warning("Probe %s with empty measurement result in %s" % (pb, f))
                 raw_len = reached_len = mean_ = mid = min_ = max_ = std_ = None
             summery.append((pb, raw_len, reached_len, mean_, mid, min_, max_, std_))
+    t2 = time.time()
+    logging.info("%s handled in %d sec." % (f, (t2-t1)))
     return summery
 
 
 def rtt_wrapper(f):
+    """ wrapper for rtt() that enables trouble shooting in worker"""
     try:
         return rtt(f)
     except Exception:
@@ -84,8 +99,6 @@ def main():
 
     # read configurations for data collection
     try:
-        # start = tt.string_to_datetime(config.get("collection", "start"))
-        # end = tt.string_to_datetime(config.get("collection", "end"))
         msmv4 = config.get("collection", "msmv4").split(',')  # multiple msm id can be separated by comma
         msmv4 = [int(i.strip()) for i in msmv4]  # remove the whitespaces and convert to int, could have ValueError
         msmv6 = config.get("collection", "msmv6").split(',')  # do the same for IPv6 measurements
@@ -94,9 +107,13 @@ def main():
         logging.critical("config for data collection is not right.")
         return
 
+    t1 = time.time()
+
     task = ((msmv4, 'v4'), (msmv6, 'v6'))
+    # v4 is id for a task
+    # msmv4 contains all the measurements associated with v4 task
     # each task has a probe to chunk id indexing file
-    # the number of chunks has to be learnt from these file first
+    # the number of chunks has to be learnt from indexing file first
     pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
     for msm, tid in task:
         try:
@@ -113,6 +130,8 @@ def main():
                     for ck in summary:
                         for pb in ck:
                             fp.write(";".join([str(i) for i in pb]) + '\n')
+    t2 = time.time()
+    logging.info("All chunks calculated in %d sec." %(t2-t1))
 
 
 if __name__ == '__main__':
