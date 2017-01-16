@@ -1,3 +1,6 @@
+from ast import literal_eval
+
+
 def read_probe(f):
     """ read data/pb.csv file
 
@@ -28,3 +31,20 @@ def type_convert(s):
         return literal_eval(s)
     except (SyntaxError, ValueError):
         return s
+
+
+def get_chunk_count(f):
+    """"return the chunk number given a probe to chunk id indexing file
+
+    Args:
+        f(string): path to probe to chunk id indexing file
+
+    Returns:
+        chunk_count (int)
+    """
+    chunk_count = 0
+    with open(f, 'r') as fp:
+        for idx, line in enumerate(fp):
+            if idx > 0:
+                chunk_count = max(chunk_count, type_convert(line.split(";")[1].strip()))
+    return chunk_count
