@@ -15,6 +15,9 @@ import time
 # https://www.ripe.net/ripe/mail/archives/ripe-atlas/2013-July/000891.html
 TIMEOUT = 1000
 
+# Hard code the IP addresses of b-root
+DST = ['192.228.79.201', '2001:500:84::b']
+
 
 def rtt(f):
     """ summarize RTT for ping and traceroute measurements with mean, median, etc.
@@ -48,7 +51,7 @@ def rtt(f):
             elif 'path' in rec:
                 paths = rec.get('path', None)
                 raw_len = len(paths)
-                reached_path = [i for i in paths if (i[-1][1] == '192.228.79.201' or i[-1][1] == '2001:500:84::b')]
+                reached_path = [i for i in paths if (i[-1][1] in DST)]
                 reached_len = len(reached_path)
                 rtts_last = [i[-1][2] for i in reached_path]
                 if rtts_last:
