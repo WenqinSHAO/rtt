@@ -126,7 +126,7 @@ def main():
 
         # save probe meta info
         with open(os.path.join(data_dir, "pb.csv"), 'w') as fp:
-            fp.write("probe_id;asn_v4;asn_v6;prefix_v4;prefix_v6;is_anchor;country_code;system-tags\n")
+            fp.write("probe_id;asn_v4;asn_v6;prefix_v4;prefix_v6;is_anchor;country_code;system_tags\n")
             for tup in probes:
                 fp.write(';'.join([str(i) for i in tup]) + '\n')
 
