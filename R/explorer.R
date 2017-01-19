@@ -185,7 +185,8 @@ ping_json <- fromJSON(file = sprintf('%d_1010.json', chunk.id))
 # plot the ping rtt time series
 ts.pingv4 <- data.frame(epoch = ping_json[[as.character(case)]]$epoch, 
                         rtt = ping_json[[as.character(case)]]$min_rtt)
-g<- ggplot(ts.pingv4, aes(x= anytime(epoch), y=rtt)) + geom_point(size=.6)
+g<- ggplot(ts.pingv4, aes(x= anytime(epoch), y=rtt)) + 
+    geom_point(aes(text=paste("Index:", seq_len(nrow(ts.pingv4)))), size=.8)
 print(g)
 ggplotly(g)
 
@@ -203,7 +204,7 @@ ts.tracev4 <- data.frame(epoch = trace_json[[as.character(case)]]$epoch,
                          rtt = last_rtt,
                          hop = last_hop,
                          reach_idx = reach_idx)
-g<- ggplot(ts.tracev4) + geom_point(aes(x=epoch, y=rtt))
+g<- ggplot(ts.tracev4) + geom_point(aes(x=epoch, y=rtt, text=paste("Index:", seq_len(nrow(ts.pingv4)))))
 print(g)
 ggplotly(g)
 
