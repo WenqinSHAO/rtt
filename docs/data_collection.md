@@ -13,8 +13,8 @@ optional arguments:
 ```
 With [data_collection.py](../data_collection.py), measurements from RIPE Atlas are collected.
 The script has one optional flag --fromfile.  
-With this flag set, the script will look in the [data/](../data/) for exsiting data.
-The optional is quite handy, when the previous run is interrupted by network issue, undiscovered bug, etc.
+With this flag set, the script will look in the [data/](../data/) for existing data.
+The option is quite handy when the previous collection is interrupted by network issue, undiscovered bug, etc.
 When the flag is set, previously downloaded data is not downloaded again.
 
 ## Configuration
