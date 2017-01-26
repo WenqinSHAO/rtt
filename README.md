@@ -16,9 +16,11 @@ other projects
 
 # What we collect?
 What are collected, how/where are they stored?
+
 ## RIPE measurements
 * v4 and v6 builtin measurement toward b-root; chunk and probe id to chunk index;
 * probe meta;
+
 ## Auxiliary data
 * IXP membership and subnet from [traIXroute](https://github.com/gnomikos/traIXroute.git); How to get the cleaned data;
 * Routeview BGP archive for IP to ASN translation with [pyasn](https://github.com/hadiasghari/pyasn.git);
