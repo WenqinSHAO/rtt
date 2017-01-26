@@ -19,7 +19,7 @@ What are collected, how/where are they stored?
 
 ## RIPE measurements
 * v4 and v6 builtin measurement toward b-root; chunk and probe id to chunk index;
-* probe meta;
+* probe meta.
 
 ## Auxiliary data
 * IXP membership and subnet from [traIXroute](https://github.com/gnomikos/traIXroute.git); How to get the cleaned data;
