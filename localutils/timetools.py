@@ -19,7 +19,10 @@ def string_to_datetime(str_):
     Return:
         datetime, a datetime object with UTC as timezone
     """
-    return parse(str_)
+    dt = parse(str_)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=pytz.UTC)
+    return dt
 
 
 def datetime_to_epoch(dt):
