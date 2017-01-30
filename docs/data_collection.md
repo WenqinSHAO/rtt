@@ -58,3 +58,5 @@ The script first learns all v3 Atlas probes and anchors.
 Then it collects configured v4/v6 measurements for all probes and anchors with system-ipv4/ipv6-works tag.
 Probes are cut into smaller chunks. Multiple processes handle these chunks in parallel.
 
+## How collected data is stored?
+TODO
