@@ -1,3 +1,6 @@
+"""
+cleaning.py is currently not used
+"""
 from error import PING_INTV, TRACE_INTV, MISS_ERR, START, PING_LEN, TRACE_LEN
 import numpy as np
 import timetools as tt

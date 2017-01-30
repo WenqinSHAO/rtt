@@ -1,4 +1,7 @@
-# error code from cousteau library
+"""
+error.py provides measurement error encoding definition
+"""
+# ERROR code for ripe.atlas.cousteau
 FORMATION_ERR = -1
 SAGAN_RES_ERR = -2
 # ERROR code for RTT

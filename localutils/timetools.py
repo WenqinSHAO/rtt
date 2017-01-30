@@ -1,3 +1,6 @@
+"""
+timetools.py provides functions that perform conversion among these types: second since epoch, string, datetime
+"""
 import datetime
 import pytz
 from dateutil.parser import parse

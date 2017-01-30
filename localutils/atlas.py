@@ -1,3 +1,6 @@
+"""
+atlas.py provides functions to handle with atlas measurements
+"""
 from ripe.atlas.cousteau import AtlasResultsRequest, ProbeRequest
 from error import MES_ERR, TIMEOUT_ERR, UNKNOWN_ERR, LATE_ERR, IP_ERR
 import logging

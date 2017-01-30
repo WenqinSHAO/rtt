@@ -1,3 +1,6 @@
+"""
+misc.py provides unclassified functions used in the project
+"""
 from ast import literal_eval
 
 
