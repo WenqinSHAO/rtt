@@ -4,7 +4,7 @@ IXP related output from traIXroute database merge
 """
 import SubnetTree
 import logging
-
+import pyasn
 
 class IXP:
     """ IXP is a class that describes IXP
@@ -31,47 +31,6 @@ class IXP:
 
     def __hash__(self):
         return hash(self.__repr__())
-
-
-class IxpPrefixDB:
-    """
-    IxpPerfixDB provides searching facilities for IP prefixes belonging to IXPs
-
-    Attributes:
-        _pt (SubnetTree): prefix as key, IXP instance as value
-    """
-    def __init__(self, fn):
-        """Initializes from traIXroute database merge output ixp_prefixes.txt
-
-        Args:
-            fn (string): path to the traIXroute db merge output ixp_prefixes.txt
-        """
-        self._pt = SubnetTree.SubnetTree()
-        try:
-            with open(fn, 'r') as fp:
-                for line in fp:
-                    # only read line with ! flags
-                    if len(line.split(',')) == 7:
-                        _, flag, pref, short_name, long_name, country, city = [i.strip() for i in line.split(',')]
-                        if flag == '!':
-                            self._pt.insert(pref,
-                                            IXP(short_name=short_name, long_name=long_name, country=country, city=city))
-        except IOError as e:
-            logging.critical("Encountered error when initializing IXP prefix DB: %s" % e)
-
-    def lookup(self, addr):
-        """Lookup a given IP address if it belongs to an IXP
-
-        Args:
-            addr (string): IP address
-
-        Returns:
-            IXP or None if no IXP contains the queried IP address
-        """
-        try:
-            return self._pt[addr]
-        except KeyError:
-            return None
 
 
 class AsRelation:
@@ -117,6 +76,137 @@ class AsRelation:
             return None
 
 
+class AddrType:
+    """AddrType enumerates the type of IP addresses
+
+    Attributes:
+        Normal (int): 100, IP address attributed to an AS by Internet Register, thus seen in routeview BGP feeds
+        InterCo (int): 101, IP address attributed to an AS by IXP for interconnection in the IXP
+        IxpPref (int): 102, IP address seen in the prefixes belong to certain IXP, but not clear which client ASN uses it
+        Others (int): 103, Other types, say private ones, *, or ones not seen in BGP feeds
+    """
+    Normal, InterCo, IxpPref, Others = range(100, 104, 1)
+
+
+class Addr:
+    """Addr describes an IP address
+
+    Attributes:
+        addr (string): IP address in string, e.g. '129.250.66.33'
+        type (AddrType): the type of IP address
+        asn (int): AS that uses this interconnection IP address
+        ixp (IXP): the IXP that attributes the IP address
+    """
+    def __init__(self, addr, addr_type=None, asn=None, ixp=None, desc=None):
+        self.addr = addr
+        self.type = addr_type
+        self.asn = asn
+        self.ixp = ixp
+        self.desc = desc
+
+    def __repr__(self):
+        return "Addr(addr=%r, type=%r, asn=%r, ixp=%r, desc=%r)" % (self.addr, self.type, self.asn, self.ixp, self.desc)
+
+    def __eq__(self, other):
+        return self.__repr__() == other.__repr__()
+
+    def __hash__(self):
+        return hash(self.__repr__())
+
+
+class AsnDB:
+    """AsnDB provides facility to query the ASN of a given IP address
+
+    Attributes:
+        _main (pyasn): stores the IP to ASN mapping parsed by pyasn from routeview BGP feeds
+            pyasn_util_download.py --latest
+            pyasn_util_convert.py --single <Downloaded RIB File> <ipasn_db_file_name>
+        _reserved (SubnetTree or None): stores the reserved IP blocks
+    """
+    def __init__(self, main, reserved=None):
+        """load from file
+
+        Args:
+            main (string): path to the conversion out put of pyasn
+            reserved (string): path to file recording reserved IP blocks
+        """
+        try:
+            self._main = pyasn.pyasn(main)
+        except (IOError, RuntimeError) as e:
+            logging.critical("Encountered error when initializing IP to ASN DB: %s" % e)
+
+        if reserved is not None:
+            self._reserved = SubnetTree.SubnetTree()
+            try:
+                with open(reserved, 'r') as fp:
+                    for line in fp:
+                        if not line.startswith('#') and len(line.split()) >= 2:
+                            pref, desc = [i.strip() for i in line.split()]
+                            self._reserved.insert(pref, desc)
+            except IOError as e:
+                logging.critical("Encountered error when initializing IP to ASN DB: %s" % e)
+        else:
+            self._reserved = None
+
+    def lookup(self, addr):
+        """look up the ASN or description of given IP address
+
+        Args:
+            addr (string): IP address, e.g. e.g. '129.250.66.33'
+
+        Return:
+            string if reserved or invalid IP address, int if an ASN is retrieved
+        """
+        try:
+            return self._reserved[addr]
+        except (TypeError, KeyError):
+            try:
+                return self._main.lookup(addr)[0]
+            except ValueError:
+                return 'Invalid IP address'
+
+
+class IxpPrefixDB:
+    """
+    IxpPerfixDB provides searching facilities for IP prefixes belonging to IXPs
+
+    Attributes:
+        _pt (SubnetTree): prefix as key, IXP instance as value
+    """
+    def __init__(self, fn):
+        """Initializes from traIXroute database merge output ixp_prefixes.txt
+
+        Args:
+            fn (string): path to the traIXroute db merge output ixp_prefixes.txt
+        """
+        self._pt = SubnetTree.SubnetTree()
+        try:
+            with open(fn, 'r') as fp:
+                for line in fp:
+                    # only read line with ! flags
+                    if len(line.split(',')) == 7:
+                        _, flag, pref, short_name, long_name, country, city = [i.strip() for i in line.split(',')]
+                        if flag == '!':
+                            self._pt.insert(pref,
+                                            IXP(short_name=short_name, long_name=long_name, country=country, city=city))
+        except IOError as e:
+            logging.critical("Encountered error when initializing IXP prefix DB: %s" % e)
+
+    def lookup(self, addr):
+        """Lookup a given IP address if it belongs to an IXP
+
+        Args:
+            addr (string): IP address
+
+        Returns:
+            IXP or None if no IXP contains the queried IP address
+        """
+        try:
+            return self._pt[addr]
+        except KeyError:
+            return None
+
+
 class AsRelationDB:
     """AsRelationDB provides searching facilities for CAIDA AS relationship inference
 
@@ -159,35 +249,12 @@ class AsRelationDB:
             return None
 
 
-class InterCo:
-    """InterCo describes an IP address used for IXP interconnection
-
-    Attributes:
-        addr (string): IP address in string
-        asn (int): AS that uses this interconnection IP address
-        ixp (IXP): the IXP that attributes the IP address
-    """
-    def __init__(self, addr, asn, ixp):
-        self.addr = addr
-        self.asn = asn
-        self.ixp = ixp
-
-    def __repr__(self):
-        return "InterCo(addr=%r, asn=%r, ixp=%r)" % (self.addr, self.asn, self.ixp)
-
-    def __eq__(self, other):
-        return self.__repr__() == other.__repr__()
-
-    def __hash__(self):
-        return hash(self.__repr__())
-
-
 class IxpMemberDB:
     """IxpMemberDB provides search facilities for IXP interconnection IP addresses and IXP membership
 
     Attributes:
         _interco (dict): IP address to InterCo object mapping
-        _memebership (dict): IXP to member ASN (int) set mapping
+        _membership (dict): IXP to member ASN (int) set mapping
         _presence (dict): ASN (int) to IXPs that it is present
     """
     def __init__(self, fn):
@@ -219,7 +286,7 @@ class IxpMemberDB:
                             else:
                                 self._presence[asn] = set([ixp])
                             # update interconnection ip
-                            self._interco.update({addr: InterCo(addr=addr, asn=asn, ixp=ixp)})
+                            self._interco.update({addr: Addr(addr=addr, addr_type=AddrType.InterCo, asn=asn, ixp=ixp)})
         except (IOError, ValueError) as e:
             logging.critical("Encountered error when initializing IXP membership DB: %s" % e)
 
