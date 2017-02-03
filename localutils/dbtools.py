@@ -6,6 +6,7 @@ import SubnetTree
 import logging
 import pyasn
 
+
 class IXP:
     """ IXP is a class that describes IXP
 
@@ -43,10 +44,7 @@ class AsRelation:
         C2P (int): 1, class attrubute, customer to provider
         coder (dict): int to above attributes mapping
     """
-    P2C, PEER, C2P = range(-1,2,1)
-    coder = {-1: AsRelation.P2C,
-             0: AsRelation.PEER,
-             1: AsRelation.C2P}
+    P2C, PEER, C2P = range(-1, 2, 1)
 
     @staticmethod
     def encode(number):
@@ -58,7 +56,7 @@ class AsRelation:
         Returns:
             int, one of the defined relationship or None
         """
-        return AsRelation.coder.get(number)
+        return number if number in range(-1, 2, 1) else None
 
     @staticmethod
     def flip(relation):
@@ -71,7 +69,7 @@ class AsRelation:
             int: one of the defined relationship, or None
         """
         try:
-            return AsRelation.coder.get(int(relation)*-1)
+            return AsRelation.encode(int(relation)*-1)
         except TypeError:
             return None
 
@@ -83,9 +81,10 @@ class AddrType:
         Normal (int): 100, IP address attributed to an AS by Internet Register, thus seen in routeview BGP feeds
         InterCo (int): 101, IP address attributed to an AS by IXP for interconnection in the IXP
         IxpPref (int): 102, IP address seen in the prefixes belong to certain IXP, but not clear which client ASN uses it
-        Others (int): 103, Other types, say private ones, *, or ones not seen in BGP feeds
+        Virtual (int): 103, virtual hop take by IXP insertion
+        Others (int): 104, Other types, say private ones, *, or ones not seen in BGP feeds
     """
-    Normal, InterCo, IxpPref, Others = range(100, 104, 1)
+    Normal, InterCo, IxpPref, Virtual, Others = range(100, 105, 1)
 
 
 class Addr:
@@ -112,6 +111,25 @@ class Addr:
 
     def __hash__(self):
         return hash(self.__repr__())
+
+    def get_asn(self):
+        """get the ASN or other info according to the address type
+
+        Return:
+            int, None, string
+        """
+        if self.type == AddrType.Normal or self.type == AddrType.InterCo:
+            return self.asn
+        elif self.type == AddrType.IxpPref:
+            return None
+        elif self.type == AddrType.Virtual:
+            try:
+                return self.asn if self.asn is not None else self.ixp.short
+            except AttributeError as e:
+                logging.warning("IXP not set for %r : %r" % (self, e))
+                return None
+        else:  # for reserved IP
+            return self.desc
 
 
 class AsnDB:
@@ -315,3 +333,17 @@ class IxpMemberDB:
         """
         return set.intersection(*[self._presence.get(i, set()) for i in as_list])
 
+    def is_member(self, ixp, asn):
+        """Check if given ASN is a member of the given IXP:
+
+        Args:
+            ixp (IXP): an IXP object
+            asn (int): ASN in int
+
+        Returns:
+            boolean
+        """
+        try:
+            return asn in self._membership[ixp]
+        except KeyError:
+            return False
