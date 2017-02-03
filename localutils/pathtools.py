@@ -1,5 +1,9 @@
+"""
+pathtools.py provides functions handling IP hops, IXP detection and ASN information.
+"""
 import dbtools as db
 import os
+import copy
 
 cur_path = os.path.abspath(os.path.dirname(__file__))
 
@@ -168,3 +172,237 @@ def insert_ixp(path):
         shift += 1
     return path
 
+
+def remove_repeated_asn(path):
+    """ remove repeated ASN in the give path
+
+    Args:
+        path (list of ASN): ASN can be int for str if IXP hop
+
+    Returns:
+        list of ASN
+    """
+    removed = []
+    for idx, hop in enumerate(path):
+        if idx == 0:
+            removed.append(hop)
+        elif hop != path[idx-1]:
+            removed.append(hop)
+    return removed
+
+
+def as_path_change(paths):
+    """ mark the idx at which AS path changes
+
+    Args:
+        paths (list of list of ASN): [[ASN,...],...]
+
+    Returns:
+        list of int, index of change is set to 1, otherwise 0
+    """
+    change = [0] * len(paths)
+    for idx, path in enumerate(paths):
+        if idx > 0:
+            if path != paths[idx-1]:
+                change[idx] = 1
+    return change
+
+
+class IpForwardingPattern:
+
+    def __init__(self, size, paris_id=None, paths=None):
+        self.pattern = [None] * size
+        if paris_id is not None and paths is not None:
+            assert len(paris_id) == len(paths)
+            for pid, path in zip(paris_id, paths):
+                    self.pattern[pid] = path
+
+    def update(self, paris_id, path):
+        assert paris_id < len(self.pattern)
+        if self.pattern[paris_id] is None:
+            self.pattern[paris_id] = path
+            return True
+        elif self.pattern[paris_id] == path:
+            return True
+        else:
+            return False
+
+    def is_complete(self):
+        return not None in self.pattern
+
+    def is_match(self, paris_id, paths):
+        for pid, path in zip(paris_id, paths):
+            if self.pattern[pid] != path:
+                return False
+        return True
+
+    def __repr__(self):
+        return "IpForwardingPattern(%r)" % dict(enumerate(self.pattern))
+
+    def __str__(self):
+        return "%s" % dict(enumerate(self.pattern))
+
+    def __hash__(self):
+        return hash(self.__repr__())
+
+    def __eq__(self, other):
+        return self.__repr__() == other.__repr__()
+
+
+class PatternSegment:
+    def __init__(self, begin, end, pattern):
+        self.begin = begin
+        self.end = end
+        self.pattern = pattern
+
+    def get_len(self):
+        return self.end - self.begin + 1
+
+    def __repr__(self):
+        return "PatternSegment(begin=%r, end=%r, pattern=%r)" % (self.begin, self.end, self.pattern)
+
+    def __str__(self):
+        return "(%r, %r, pattern=%s)" % (self.begin, self.end, self.pattern)
+
+    def __hash__(self):
+        return hash(self.__repr__())
+
+    def __eq__(self, other):
+        return self.__repr__() == other.__repr__()
+
+
+def ip_path_change_simple(paris_id, paths, size=16):
+    """ given paris_id and path, detect when ip path experienced a change
+
+    Args:
+        paris_id (list of int): Paris ID used when tracerouting
+        paths (list of list of IP hops): IP hops are just plein string of IP address
+        size (int): number of different paris_ids
+
+    Returns:
+        list of int, index of change is set to 1, otherwise 0
+    """
+    assert (len(paris_id) == len(paths))
+    seg = []
+    cur_seg = PatternSegment(begin=0, end=0, pattern=IpForwardingPattern(size))
+    for idx, (pid, path) in enumerate(zip(paris_id, paths)):
+        if cur_seg.pattern.update(pid, path):
+            cur_seg.end = idx
+        else:
+            seg.append(cur_seg)
+            cur_seg = PatternSegment(begin=idx, end=idx, pattern=IpForwardingPattern(size))
+            cur_seg.pattern.update(pid, path)
+    if cur_seg not in seg:
+        seg.append(cur_seg)
+    return seg
+
+
+def ip_path_change_heuristics(paris_id, paths, size=16):
+
+    seg = ip_path_change_simple(paris_id, paths, size)  # simple segmentation
+
+    for idx, s in enumerate(seg[:-1]):
+        next_s = seg[idx + 1]
+        # | cur seg |<-  next seg  | extend later segment while possible
+        # |  cur seg ->|  next seg | is not possible
+        if next_s.pattern.is_complete() and next_s.get_len() >= 2 * size and next_s.get_len() > s.get_len():
+            next_s_cp = copy.deepcopy(next_s)
+            cur_s_cp = copy.deepcopy(s)
+            pos = cur_s_cp.end
+            while True:
+                # can be extended <-
+                if next_s.pattern.update(paris_id[pos], paths[pos]):
+                    cur_s_cp.end = pos - 1
+                    cur_s_cp.pattern = IpForwardingPattern(size,
+                                                           paris_id[cur_s_cp.begin:cur_s_cp.end+1],
+                                                           paths[cur_s_cp.begin:cur_s_cp.end+1])
+                    next_s_cp.begin = pos
+                    pos -= 1
+                else:
+                    break
+            # if extended, change the previous segmentation
+            if cur_s_cp != s:
+                seg[idx] = cur_s_cp
+                seg[idx+1] = next_s_cp
+
+    # find relatively popular IpForwarding pattern
+    long_pat = [s.pattern for s in seg if s.get_len() > 2*size]
+    print "Long patterns: %s" % long_pat
+    split = dict()
+    split_seg = []
+    # try to further split short segments by finding longest match with popular pattern
+    for idx, s in enumerate(seg):
+        if s.get_len() < 2 * size:
+            print "short seg: %s" % s
+            max_len_per_pos = []
+            # iterate over all the idx as starting point in the short segment
+            # and store the longest match with popular patterns
+            for pos in range(s.begin, s.end):
+                print "check %r" % pos
+                l = 2  # starting from match length 2
+                # TODO: for seg at last, shall not surpass the total length
+                while True:
+                    pt_count = 0 # the number of  matched long pattern
+                    for lp in long_pat:
+                        if lp.is_match(paris_id[pos:pos+l], paths[pos:pos+l]):
+                            pt_count += 1
+                    if pt_count: # if pos:pos+l matches at least one long pattern, further extend the length
+                        l += 1
+                    else:  # record last successful try
+                        max_len_per_pos.append((pos, l-1))
+                        print "\t %d, %d" % (pos, l-1)
+                        break
+            max_len_per_pos = sorted(max_len_per_pos, key=lambda e: e[1], reverse=True)
+            longest_cut = max_len_per_pos[0]
+            if longest_cut[1] > 1:  # only if the length of the longest cut is > 1
+                print "Split"
+                print longest_cut
+                split[idx] = longest_cut
+
+    for idx, s in enumerate(seg):
+        if idx in split:
+            cut_begin = split[idx][0]
+            cut_end = cut_begin + split[idx][1] - 1
+            # cut the segment
+            if cut_begin == s.begin:
+                split_seg.append(PatternSegment(begin=cut_begin,
+                                                end=cut_end,
+                                                pattern=IpForwardingPattern(size,
+                                                                            paris_id[cut_begin:cut_end + 1],
+                                                                            paths[cut_begin:cut_end + 1])))
+                split_seg.append(PatternSegment(begin=cut_end + 1,
+                                                end=s.end,
+                                                pattern=IpForwardingPattern(size,
+                                                                            paris_id[cut_end + 1:s.end + 1],
+                                                                            paths[cut_end + 1:s.end + 1])))
+            elif cut_begin > s.begin and cut_end < s.end:
+                split_seg.append(PatternSegment(begin=s.begin,
+                                                end=cut_begin - 1,
+                                                pattern=IpForwardingPattern(size,
+                                                                            paris_id[s.begin:cut_begin],
+                                                                            paths[s.begin:cut_begin])))
+                split_seg.append(PatternSegment(begin=cut_begin,
+                                                end=cut_end,
+                                                pattern=IpForwardingPattern(size,
+                                                                            paris_id[cut_begin:cut_end + 1],
+                                                                            paths[cut_begin:cut_end + 1])))
+                split_seg.append(PatternSegment(begin=cut_end + 1,
+                                                end=s.end,
+                                                pattern=IpForwardingPattern(size,
+                                                                            paris_id[cut_end + 1:s.end + 1],
+                                                                            paths[cut_end + 1:s.end + 1])))
+            elif cut_end == s.end:
+                split_seg.append(PatternSegment(begin=s.begin,
+                                                end=cut_begin - 1,
+                                                pattern=IpForwardingPattern(size,
+                                                                            paris_id[s.begin:cut_begin],
+                                                                            paths[s.begin:cut_begin])))
+                split_seg.append(PatternSegment(begin=cut_begin,
+                                                end=cut_end,
+                                                pattern=IpForwardingPattern(size,
+                                                                            paris_id[cut_begin:cut_end + 1],
+                                                                            paths[cut_begin:cut_end + 1])))
+        else:
+            split_seg.append(s)
+
+    return split_seg
