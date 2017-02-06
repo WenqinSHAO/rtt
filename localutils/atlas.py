@@ -42,8 +42,9 @@ def get_pb(pb_tag="system-v3", is_anchor=False, date=None, asn=None):
                 if 'system-' in d["slug"]:
                     tags.append(str(d["slug"]))
             tags = tuple(tags)
-            pb_id.append((pb["id"], pb['asn_v4'], pb['asn_v6'],
-                          pb['prefix_v4'], pb['prefix_v6'], pb['is_anchor'], pb['country_code'], tags))
+            pb_id.append((pb["id"], pb['address_v4'], pb['prefix_v4'], pb['asn_v4'],
+                          pb['address_v6'], pb['prefix_v6'], pb['asn_v6'],
+                          pb['is_anchor'], pb['country_code'], tags))
     return pb_id
 
 
