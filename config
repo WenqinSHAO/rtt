@@ -1,14 +1,8 @@
 [collection]
 start = 2016-10-01 00:00:00 +0000
-end = 2017-01-01 00:00:00 +0000
+end = 2016-10-07 00:00:00 +0000
 msmv4 = 1010, 5010
 msmv6 = 2010, 6010
 
 [dir]
 data = data/
-
-[db]
-as_rel = db/20161201.as-rel2.txt
-ip2ans = db/ipasn.dat
-ixp_pref = db/ixp_prefixes.txt
-ixp_member = db/ixp_membership.txt
