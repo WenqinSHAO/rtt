@@ -450,8 +450,8 @@ def ip_path_change_split(paris_id, paths, size):
         # and it's pattern doesn't match with any of the popular ones
         if 2 < s.get_len() < 2 * size:
             any_match = False
-            for pt in long_pat:
-                if pt.is_match_patter(s.pattern):
+            for lp in long_pat:
+                if lp.is_match_pattern(s.pattern):
                     any_match = True
             if not any_match:
                 max_len_per_pos = []
@@ -560,3 +560,20 @@ def ip_path_change_split(paris_id, paths, size):
         elif idx not in merge and idx-1 not in merge:
             mg_seg.append(seg)
     return mg_seg
+
+
+def ifp_change(seg, seq_len):
+    """ mark the idx at which IpForwardingPattern changes, i.e. the beginning of a new segment
+
+        Args:
+            seg (list of PatternSegment): the out put of ifp change detection algos
+            seq_len: the total length of the path sequence
+
+        Returns:
+            list of int, index of change is set to 1, otherwise 0
+        """
+    change = [0] * seq_len
+    if len(seg) > 1:
+        for s in seg[1:]:
+            change[s.begin] = 1
+    return change
