@@ -433,7 +433,6 @@ def ip_path_change_split(paris_id, paths, size):
     """
 
     seg = ip_path_change_bck_ext(paris_id, paths, size)
-
     # find relatively popular IpForwarding pattern: any patter that ever lasts more than 2 paris id iteration
     # not different segment can have same pattern at different places in the path sequences
     long_pat = set([s.pattern for s in seg if s.get_len() > 2*size])
@@ -465,11 +464,11 @@ def ip_path_change_split(paris_id, paths, size):
                             if lp.is_match(paris_id[pos:pos+l], paths[pos:pos+l]):
                                 any_match = True
                                 break
-                    if any_match:  # if pos:pos+l matches at least one long pattern, further extend the length
-                        l += 1
-                    else:  # record last successful try
-                        max_len_per_pos.append((pos, l-1))
-                        break
+                        if any_match:  # if pos:pos+l matches at least one long pattern, further extend the length
+                            l += 1
+                        else:  # record last successful try
+                            max_len_per_pos.append((pos, l-1))
+                            break
                 # this is case when the end of sub-segment reaches the end of the short segment
                 if (pos, l-1) not in max_len_per_pos:
                         max_len_per_pos.append((pos, l-1))
