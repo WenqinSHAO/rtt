@@ -119,21 +119,21 @@ def main():
     else:
         # fetch probes/anchors and their meta data
         t1 = time.time()
-        probes = at.get_pb(date=tt.string_to_epoch(start))
-        probes.extend(at.get_pb(is_anchor=True, date=tt.string_to_epoch(start)))
+        probes = at.get_pb(date=tt.datetime_to_epoch(start))
+        probes.extend(at.get_pb(is_anchor=True, date=tt.datetime_to_epoch(start)))
         t2 = time.time()
         logging.info("Probe query finished in %d sec." % (t2-t1))
 
         # save probe meta info
         with open(os.path.join(data_dir, "pb.csv"), 'w') as fp:
-            fp.write("probe_id;asn_v4;asn_v6;prefix_v4;prefix_v6;is_anchor;country_code;system_tags\n")
+            fp.write("probe_id;address_v4;prefix_v4;asn_v4;address_v6;prefix_v6;asn_v6;is_anchor;country_code;system_tags\n")
             for tup in probes:
                 fp.write(';'.join([str(i) for i in tup]) + '\n')
 
     # filter probes with system tags or with network attributes such as ASN and prefixes
-    pb_netv4 = [i[0] for i in probes if (i[1] is not None and i[3] is not None)]
+    pb_netv4 = [i[0] for i in probes if (i[2] is not None and i[3] is not None)]
     pb_tagv4 = [i[0] for i in probes if 'system-ipv4-works' in i[-1]]
-    pb_netv6 = [i[0] for i in probes if (i[2] is not None and i[4] is not None)]
+    pb_netv6 = [i[0] for i in probes if (i[5] is not None and i[6] is not None)]
     pb_tagv6 = [i[0] for i in probes if 'system-ipv6-works' in i[-1]]
 
     # compare the two ways of filtering
