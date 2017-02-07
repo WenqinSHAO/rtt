@@ -435,7 +435,7 @@ def ip_path_change_split(paris_id, paths, size):
     seg = ip_path_change_bck_ext(paris_id, paths, size)
     # find relatively popular IpForwarding pattern: any patter that ever lasts more than 2 paris id iteration
     # not different segment can have same pattern at different places in the path sequences
-    long_pat = set([s.pattern for s in seg if s.get_len() > 2*size])
+    long_pat = set([s.pattern for s in seg if s.get_len() > 2*size and s.pattern.is_complete()])
     # {idx:(position, length)}
     # idx: the idx of seg to be split
     # position and length of the longest sub-segment that matches popular patterns
@@ -448,18 +448,18 @@ def ip_path_change_split(paris_id, paths, size):
         # the segment should at least 3 in length and it's pattern has not been repeated
         # and it's pattern doesn't match with any of the popular ones
         if 2 < s.get_len() < 2 * size:
-            #logging.debug("Split short seg %d th: %r" % (idx, s))
+            # logging.debug("Split short seg %d th: %r" % (idx, s))
             any_match = False
             for lp in long_pat:
                 if lp.is_match_pattern(s.pattern):
                     any_match = True
-                    #logging.debug("\tShort seg match with popular pattern %r, thus skipped" % (lp))
+                    # logging.debug("\tShort seg match with popular pattern %r, thus skipped" % (lp))
             if not any_match:
                 max_len_per_pos = []
                 # iterate over all the idx from the beginning to one before last of the short segment
                 # and store the longest match with popular patterns for each position
                 for pos in range(s.begin, s.end):
-                    #logging.debug("\tInspect pos %d" % pos)
+                    # logging.debug("\tInspect pos %d" % pos)
                     l = 2  # starting from match length 2
                     while pos+l <= s.end+1:  # iterate till the end of current segment
                         any_match = False  # the number of  matched long pattern
@@ -475,13 +475,13 @@ def ip_path_change_split(paris_id, paths, size):
                     # this is case when the end of sub-segment reaches the end of the short segment
                     if (pos, l-1) not in max_len_per_pos:
                         max_len_per_pos.append((pos, l-1))
-                    #logging.debug("\t\tlongest sub seg %s" % str(max_len_per_pos[-1]))
+                    # logging.debug("\t\tlongest sub seg %s" % str(max_len_per_pos[-1]))
 
                 max_len_per_pos = sorted(max_len_per_pos, key=lambda e: e[1], reverse=True)
                 longest_cut = max_len_per_pos[0]
                 if longest_cut[1] > 1:  # further split only if the length of the longest match > 1 in length
                     split[idx] = longest_cut
-                    #logging.debug("\t cut at %s" % str(longest_cut))
+                    # logging.debug("\t cut at %s" % str(longest_cut))
 
     # split the segments
     for idx, s in enumerate(seg):
