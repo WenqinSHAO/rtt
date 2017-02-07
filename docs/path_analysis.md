@@ -147,7 +147,7 @@ The beginning of each resulted segment is then when IFP change happens. Here bel
 ```
 Algo: simple_detection
 InPut: sequence of (Paris ID, IP Path)
-OutPut: sequence of segments in input following a same IFP
+OutPut: sequence of segments in InPut following a same IFP
 
 1: segment.begin  <- 0 # idx starting from 0
 2: segment.end <- 0
@@ -197,10 +197,10 @@ compatible with the next segment from 17 to 31.
 ```
 Therefore chances are that the third segment begins from 11 (right after path k) instead of 17.
 
-However, one might argue that it is still theoretically correct that the 2nd segment from 8 to 16 represent a IP forwarding pattern
+One might argue that it is still theoretically correct that the 2nd segment from 8 to 16 represent a IP forwarding pattern
 unique and different from its neighbours, which is true.
 
-According to the nature of network engineering (add reference here), networks tend to have some stable configurations 
+However, according to the nature of network engineering/previous study (add reference here), networks tend to have some stable configurations 
 that lead to a few dominant IFPs over time. 
 That is to say, deviation from dominant/popular IFP is generally short living, sometimes not even able to present in all the Paris IDs. 
 (Note, Paris IDs is sequentially scanned from 0 to 15, which takes at least 450min (30min * 15) to go through all of them for built-in traceroute.)
@@ -213,11 +213,11 @@ which extends the segment backwardly
 The pseudo code is give below:
 ```
 Algo: backward_extension
-Input: sequence of (Paris ID, IP Path)
-OutPut: sequence of segments in input following a same IFP
+InPut: sequence of (Paris ID, IP Path)
+OutPut: sequence of segments in InPut following a same IFP
 
 1: for two neighbouring segments seg and next_seg in simple_detction(InPut):
-2:     if (next_seg.IFP is complete) and (next_seg.IFP is repeated at least once) and (next_seg is longer than seg):
+2:     if (next_seg.IFP is complete) and (next_seg.length >= 2 * number of IFP) and (next_seg is longer than seg):
 3:         # the first two criteria ensure that the IFP of next_seg is not a temporary one;
 4:         # the last criteria ensures that we always enlarges the presence of the more popular IFP;
 5:         extend from the backward the next_seg into seg to the maximum
@@ -236,3 +236,61 @@ print_seg(seg)
 """
 ```
 
+### Further split and merge
+Backward extension improves the detection result but is still not good enough.
+It still falls short in pinpointing the short deviations from major IFP.
+
+Let's look again at the example. With human pattern recognition power and some
+familiarity with the topic, we might easily spot that the path k in the 2nd
+segment is actually a short deviation from major pattern.
+The beginning of 2nd segment together with the tail of 1st segment (enclosed by '|' in beneath illustration) 
+actually match with the major pattern (IFP of 3rd segment) and makes them (concatenated) a more appropriate segmentation.
+```
+  0    1    2    3    4    5    6
+['b', 'b', 'c',|'b', 'b', 'a', 'b',  # path sequence enclosed by | match with major IFP
+ 'b',('a', 'a',|'k', 'b', 'a', 'b',  # 2nd segment marked in ()
+ 'b', 'a', 'a',)'b', 'b', 'a', 'b',
+ 'b', 'a', 'a', 'b', 'b', 'a', 'b',
+ 'b', 'a', 'a', 'b', 'k', 'a', 'b']
+```
+
+In order to achieve such finer localization of short deviation we further split segments
+without fully repeated IFP after backward extension to extract sub-segments that matches one of the major patterns.
+Then we check again for all the neighbouring segments if them can be merged to match with one of the major patterns.
+Here below the pseudo code:
+```
+Algo: split_and_merge
+InPut: sequence of (Paris ID, IP Path)
+OutPut: sequence of segments in InPut following a same IFP
+
+segment_seq <- backward_extension(InPut)
+popular_pattern <- any complete IFP that ever lasts more than 2 * Paris ID in length continuously in segment_seq
+for idx, segment in segment_seq:
+    if 2 < segment.length < 2 * number of Paris ID:  # can be split and not popular
+        for all path_idx, paris_id, path but last one in segment:
+            find the longest sub-segment starting from path_idx that matches any of popular_pattern
+        find the longest sub-segment that matches with popular pattern among all the inspected positions
+        if the resulted sub-segment is longer than 1:
+            split the segment according to the identified sub-segment
+for two neighbouring segments seg and next_seg in above split segment_seq:
+     if both segments are shorter than 2 * number of Paris ID:
+         if seg.IFP mathces with next_seg.IFP:
+             if merge(seg, next_seg).IFP matches any of the popular_pattern:
+                 merge seg and next_seg later on
+return updated segment_seq
+```
+
+We apply this further refined method to the example and find the output now catches
+those short deviations and is in accordance with human recognition.
+```python
+seg = pt.ip_path_change_split(paris_id, paths, 7)
+print_seg(seg)
+"""
+(0, 2, pattern={0: None, 1: None, 2: 'b', 3: 'b', 4: 'c', 5: None, 6: None})
+(3, 9, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'b', 6: 'b'})
+(10, 10, pattern={0: None, 1: None, 2: None, 3: None, 4: None, 5: 'k', 6: None})
+(11, 31, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'b', 6: 'b'})
+(32, 32, pattern={0: None, 1: None, 2: None, 3: None, 4: None, 5: None, 6: 'k'})
+(33, 34, pattern={0: 'a', 1: 'b', 2: None, 3: None, 4: None, 5: None, 6: None})
+"""
+```
