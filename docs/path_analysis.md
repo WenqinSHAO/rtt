@@ -12,6 +12,12 @@ json file with the same name in the [data/path_analysis/](../data/path_analysis)
 according to dir section in [config](../config).
 __path_analysis.log__ will be generated for debugging uses.
 
+Functions are provides in [localutils/pathtools.py](../localutils/pathtools.py) to perform following tasks in a standalone
+manner, and thus can be easily reused out side the scope of this project:
+* query IP address info from various [auxiliary data](auxiliary_data.md) source;
+* detect the presence of IXP in IPv4 IP path seen in traceroute;
+* detect changes in IP forwarding pattern;
+
 ## Output
 Each json file in [data/path_analysis/](../data/path_analysis) follows the following structure:
 ```
@@ -42,12 +48,13 @@ As a matter of fact, some IXPs use reserved IP blocks for inter-connection, thes
 mingled with each other.
 
 Our method is:
+
 0. add the probe IP at the beginning (helps to remove private hops at the head of ip path later on);
 1. get enhanced IP hop information, from [auxiliary data](auxiliary_data.md) collected in this work;
-  1.1 check if an IP is an [IXP interconnection address](auxiliary_data.md#ixp-related-data) used by member AS; (get info on IXP, and ASN of the member);
-  1.2 else, check if an IP belongs to one of [prefixes used by certain IXP](auxiliary_data.md#ixp-related-data); (get info on the IXP);
-  1.3 else, check if an IP belongs to one of [reserved IP blocks](auxiliary_data.md#reserved-ip-blocks); (get on the reserved purpose);
-  1.4 else, check if an IP is announced by certain AS according to [BGP RIBs](auxiliary_data.md#routeview-bgp-ribs); (get info on ASN);
+  1. check if an IP is an [IXP interconnection address](auxiliary_data.md#ixp-related-data) used by member AS; (get info on IXP, and ASN of the member);
+  2. else, check if an IP belongs to one of [prefixes used by certain IXP](auxiliary_data.md#ixp-related-data); (get info on the IXP);
+  3. else, check if an IP belongs to one of [reserved IP blocks](auxiliary_data.md#reserved-ip-blocks); (get on the reserved purpose);
+  4. else, check if an IP is announced by certain AS according to [BGP RIBs](auxiliary_data.md#routeview-bgp-ribs); (get info on ASN);  
 2. once step 1 is down for each hop of a path, we remove hops in reserved IP blocks if they are directly surrounded by ASNs with know relationship
 according to [CAIDA AS relationship inference](auxiliary_data.md#caida-as-relationship-inference);
 (IXP prefixes are regarded transparent while IXP interco follows the ASN of the AS that uses it) 
