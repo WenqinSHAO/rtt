@@ -47,24 +47,26 @@ paris_id = [2, 3, 4, 5, 6, 0, 1,
             2, 3, 4, 5, 6, 0, 1,
             2, 3, 4, 5, 6, 0, 1,
             2, 3, 4, 5, 6, 0, 1]
+# for the brevity of demonstration, each character stands for an IP path
 paths = ['b', 'b', 'c', 'b', 'b', 'a', 'b',
          'b', 'a', 'a', 'k', 'b', 'a', 'b',
          'b', 'a', 'a', 'b', 'b', 'a', 'b',
          'b', 'a', 'a', 'b', 'b', 'a', 'b',
-         'b', 'a', 'a', 'b', 'k', 'a', 'b']  # each string stands for a IP path
+         'b', 'a', 'a', 'b', 'k', 'a', 'b']
 seg = pt.ip_path_change_split(paris_id, paths, 7)  # 7 because 7 different Paris ID in all
 print_seg(seg)
 """
 Should expect:
-(0, 5, pattern={0: 'a', 1: None, 2: 'b', 3: 'b', 4: 'c', 5: 'b', 6: 'b'})
-(6, 9, pattern={0: None, 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: None, 6: None})
+(0, 2, pattern={0: None, 1: None, 2: 'b', 3: 'b', 4: 'c', 5: None, 6: None})
+(3, 9, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'b', 6: 'b'})
 (10, 10, pattern={0: None, 1: None, 2: None, 3: None, 4: None, 5: 'k', 6: None})
 (11, 31, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'b', 6: 'b'})
 (32, 32, pattern={0: None, 1: None, 2: None, 3: None, 4: None, 5: None, 6: 'k'})
-(33, 34, pattern={0: 'a', 1: 'b', 2: None, 3: None, 4: None, 5: None, 6: None}
+(33, 34, pattern={0: 'a', 1: 'b', 2: None, 3: None, 4: None, 5: None, 6: None})
+
 """
 pt.ifp_change(seg, len(paris_id))
-# [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0]
+# [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0]
 ```
 
 ## Output
@@ -114,3 +116,4 @@ NOTE: [traIXroute](https://github.com/gnomikos/traIXroute.git) didn't try to rem
 This matters when such hop is next to IXP related addresses and prevents the detection.
 
 ## IP Forwarding Pattern change detection
+
