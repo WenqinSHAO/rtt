@@ -80,7 +80,7 @@ Each json file in [data/path_analysis/](../data/path_analysis) follows the follo
         "as_path_change": list of int; same length as "epoch" list, 1 for momement of change, otherwise 0,
         "ifp_simple": list of int; IP Forwarding Pattern (IFP) change detected with simple method; 0,1 as "as_path_change",
         "ifp_bck": list of int; IFP change detected with backward extension heuristic,
-        "ifp_split": list of int; IFP change detected with further split on top of backward extension
+        "ifp_split": list of int; IFP change detected with further split and merge on top of backward extension
     }
 }
 ```
