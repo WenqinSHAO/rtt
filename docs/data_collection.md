@@ -54,7 +54,7 @@ probe_id  address_v4      prefix_v4      asn_v4  address_v6                     
 For each measurement configured in [config](../config), i.e. 1010, 5010, 2010, 6010, a series of json file storing Atlas measurements are generated.
 They are named following this pattern: __chunkid_msmid.json__. Each file contains alone the entire trace of several probes.
 In order to know the file, i.e. chunk id for a given probe, two index file is as well generated, one for IPv4 measurements, the other for IPv6.
-They are [pb_chunk_index_v4.csv](../data/pb_chunk_index_v4.csv) and [pb_chunk_index_v6.csv](../data/pb_chunk_index_v6.csv) in data/](../data/) folder.
+They are [pb_chunk_index_v4.csv](../data/pb_chunk_index_v4.csv) and [pb_chunk_index_v6.csv](../data/pb_chunk_index_v6.csv) in [data/](../data/) folder.
 
 ### Ping measurement
 Each json file for ping measurement is of following structure:
