@@ -116,4 +116,63 @@ NOTE: [traIXroute](https://github.com/gnomikos/traIXroute.git) didn't try to rem
 This matters when such hop is next to IXP related addresses and prevents the detection.
 
 ## IP Forwarding Pattern change detection
+RIPE Atlas uses Paris-traceroute in built-in traceroute.
+In order to discover the IP path diversity, it uses rotating Paris IDs from 0 to 15, incremented by 1 each time.
+This design has two major consequences in detecting IP-leve path changes:
+1. Challenges: two neighbouring traceroute could naturally report two different IP paths due to load-balancing;
+however that doesn't mean that any change in IP forwarding has ever taken place.
+2. Benefits: it enlarges the chances of detecting changes in IP forwarding. If traceroute is locked on one single Paris ID,
+it is possible that certain change alters the path taken by the Paris IDs not used in the measurements, thus resulting false negative.
 
+In order to detect IP path change not due to load balancing, we introduce the notion of IP Forwarding Pattern (IFP).
+Instead of detecting changes in bare IP path, we detect changes in IFP.
+It is defined as the ensemble mapping relationship between all possible Paris IDs and IP paths taken.
+More formally for a case with 4 different Paris ID:
+```
+IpForwardingPattern({0:IpPath, 1:IpPath, 2:IpPath, 3:IpPath})
+```
+Two IFP conflict with each other/differ when there is at least one Paris ID satisfying both requirements:
+1. both IFP have defined IP path for this Paris ID, i.e. the IP path is not None/empty;
+2. the two IP paths are different, in the sense that any hop is different or hop sequence is different etc.
+
+A tuple of (Paris ID, IP path) is compatible with an IFP as long as for the same Paris ID, the IP path is as well the same.
+In the case the IP path is not defined in the IFP, the compatibility is always established.
+
+### Simple/Vanilla detection
+A straightforward way of detecting IFP changes in IP path sequences along side with Paris ID is to construct IFP 
+by adopting compatible (Paris ID, IP path) tuple one by one, till the compatibility test failed start a new segment.
+The beginning of each resulted segment is then when IFP change happens. Here below the procedure in pseudo code:
+```
+Algo: Simaple/Vanilla detection
+Input: sequence of (Paris ID, IP Path)
+OutPut: sequence of segments in input following a same IFP
+
+1: segment.begin  <- 0 # idx starting from 0
+2: segment.end <- 0
+3: segment.IFP <- empty IFP, # not IP path is set for any of the Paris ID
+4: for idx, paris_id, path in Input:
+5:     if (paris_id, path) is compatible with segment.IFP
+6:         segmemt.end <- idx
+7:     else
+8:         add segment to OutPut
+9:         # start a new segment
+10:         segment.begin <- idx
+11:        segment.end <- idx
+12:        segment.IFP <- IFP with paris_id set to path
+13: if segment not in OutPut  # # in case leave the for loop while still inside a segment
+14:    add segment to Output
+15: return OutPut
+```
+
+If we take the same example in [usage](path_analysis.md#usage) section, we'd be expecting result as the following:
+```python
+seg = pt.ip_path_change_simple(paris_id, paths, 7)
+print_seg(seg)
+"""
+(0, 7, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'b', 4: 'c', 5: 'b', 6: 'b'})
+(8, 16, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'k', 6: 'b'})
+(17, 31, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'b', 6: 'b'})
+(32, 34, pattern={0: 'a', 1: 'b', 2: None, 3: None, 4: None, 5: None, 6: 'k'})
+
+"""
+```
