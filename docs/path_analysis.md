@@ -180,23 +180,35 @@ print_seg(seg)
 ```
 
 ### Backward extension
-With the simple detection, path segments following a same IFP is developed incrementally in a forwarding direction as the IP
+With the simple detection, path segments following a same IFP are developed incrementally in a forwarding direction as the IP
 path sequence is presented.
-The drawback of this approach is evident. It delays the detection of actually IFP change, as once a new segment begins it always
+The drawback of this approach is evident. It potentially delays the detection of actually IFP change, as once a new segment begins it always
 has the chance to fill up all the Paris IDs.
-If we look at the second segment from 8 to 16 in above example, we notice that all the IP paths starting from k, are all ready 
+
+If we look at the second segment from 8 to 16 in above example, we notice that all the IP paths starting from path k, are all ready 
 compatible with the next segment from 17 to 31.
-Therefore chances are that the third segment begins from 11 instead of 17.
+```
+  0    1    2    3    4    5    6
+['b', 'b', 'c', 'b', 'b', 'a', 'b',
+ 'b',('a', 'a', 'k', 'b', 'a', 'b',  # 2nd segment marked in ()
+ 'b', 'a', 'a',)'b', 'b', 'a', 'b',
+ 'b', 'a', 'a', 'b', 'b', 'a', 'b',
+ 'b', 'a', 'a', 'b', 'k', 'a', 'b']
+```
+Therefore chances are that the third segment begins from 11 (right after path k) instead of 17.
 
 However, one might argue that it is still theoretically correct that the 2nd segment from 8 to 16 represent a IP forwarding pattern
-unique and different from its neighbours.
-According to nature of network engineering (add reference here), network tend to have some dominant stable configurations 
-that lead to a few dominant IFP over the time. 
-That is to say, deviation from dominant/popular IFP is generally short living, sometimes not even able to present in all the Paris IDs.
-This rule of thumb justifies the observation that later part of 2nd segment should actually belong to 3nd segment, as the later is
-repeated more than once that more popular.
+unique and different from its neighbours, which is true.
 
-In order to overcome such disadvantage of simple detection, we propose backward extension on top of simple detection, which extends the segment backwardly 
+According to the nature of network engineering (add reference here), networks tend to have some stable configurations 
+that lead to a few dominant IFPs over time. 
+That is to say, deviation from dominant/popular IFP is generally short living, sometimes not even able to present in all the Paris IDs. 
+(Note, Paris IDs is sequentially scanned from 0 to 15, which takes at least 450min (30min * 15) to go through all of them for built-in traceroute.)
+This rule of thumb justifies the observation that later part of 2nd segment should actually belong to 3nd segment, as the IFP of later segment is
+repeated more than once and lasts longer than 2nd segment, thus more popular.
+
+Basing on such understanding, we propose backward extension on top of simple detection,
+which extends the segment backwardly 
 (contrary to forwardingly in simple detection) if the later one is more popular among the two neighbouring segment.
 The pseudo code is give below:
 ```
@@ -204,10 +216,12 @@ Algo: backward_extension
 Input: sequence of (Paris ID, IP Path)
 OutPut: sequence of segments in input following a same IFP
 
-for two neighbouring segments seg and next_seg in simple_detction(InPut):
-    if (next_seg.IFP is complete) and (next_seg.IFP is repeated at least once) and (next_seg is longer than seg):
-        extend from the backward the next_seg into seg to the maximum
-return the updated segment sequence
+1: for two neighbouring segments seg and next_seg in simple_detction(InPut):
+2:     if (next_seg.IFP is complete) and (next_seg.IFP is repeated at least once) and (next_seg is longer than seg):
+3:         # the first two criteria ensure that the IFP of next_seg is not a temporary one;
+4:         # the last criteria ensures that we always enlarges the presence of the more popular IFP;
+5:         extend from the backward the next_seg into seg to the maximum
+6: return the updated segment sequence
 ```
 
 We take again the example in [usage](path_analysis.md#usage) section, and apply backward extension to it:
