@@ -1,15 +1,15 @@
 # Traceroute Path Analysis
 This documentation explains how we:
 * translate IP path to ASN path;
-* detect pattern change in forwarding path;
+* detect change in IP Forwarding Pattern (IFP);
 
 ## Usage
 ```
 $ python path_analysis.py
 ```
-The script will read all the traceroute measurement json files in [data/](../data) and produces a
-json file with the same name in the [data/path_analysis/](../data/path_analysis) 
-according to dir section in [config](../config).
+The script will read all the traceroute measurement json files in [data/](../data) and produces
+json files with the same names in the [data/path_analysis/](../data/path_analysis) folder
+according to the __dir__ section in [config](../config).
 __path_analysis.log__ will be generated for debugging uses.
 
 Functions are provides in [localutils/pathtools.py](../localutils/pathtools.py) to perform following tasks in a standalone
@@ -17,6 +17,55 @@ manner, and thus can be easily reused out side the scope of this project:
 * query IP address info from various [auxiliary data](auxiliary_data.md) source;
 * detect the presence of IXP in IPv4 IP path seen in traceroute;
 * detect changes in IP forwarding pattern;
+
+For example:
+```python
+import localutils.pathtools as pt
+
+# example for querying IP address information
+pt.get_ip_info('195.191.171.31')
+# Addr(addr='195.191.171.31', type=101, asn=197345, ixp=IXP(short='EPIX.Katowice', long='Stowarzyszenie na Rzecz Rozwoju Spoleczenstwa Informacyjnego e-Poludnie', country='PL', city='Katowice Silesia'), desc=None)
+pt.get_ip_info('192.168.0.1')
+# Addr(addr='192.168.0.1', type=104, asn=None, ixp=None, desc='private')
+
+# example for translating IP path to ASN path
+ip_path = ["10.71.6.11", "194.109.5.175", "194.109.7.169", "194.109.5.2", 
+           "80.249.209.150", "72.52.92.213", "72.52.92.166", "184.105.223.165", 
+           "184.105.80.202", "72.52.92.122", "x", "216.218.223.26", "130.152.184.3", 
+           "x", "x", "x", "x", "x", "x"]
+enhanced_hops = [pt.get_ip_info(hop) for hop in ip_path]
+asn_path = pt.remove_repeated_asn([hop.get_asn() for hop in pt.insert_ixp(pt.bridge(enhanced_hops))])
+# ['private', 3265, 'AMS-IX', 6939, 226, 'Invalid IP address']
+
+# example for detecting IFP change
+def print_seg(seg):
+    for i in seg:
+        print i
+
+paris_id = [2, 3, 4, 5, 6, 0, 1,
+            2, 3, 4, 5, 6, 0, 1,
+            2, 3, 4, 5, 6, 0, 1,
+            2, 3, 4, 5, 6, 0, 1,
+            2, 3, 4, 5, 6, 0, 1]
+paths = ['b', 'b', 'c', 'b', 'b', 'a', 'b',
+         'b', 'a', 'a', 'k', 'b', 'a', 'b',
+         'b', 'a', 'a', 'b', 'b', 'a', 'b',
+         'b', 'a', 'a', 'b', 'b', 'a', 'b',
+         'b', 'a', 'a', 'b', 'k', 'a', 'b']  # each string stands for a IP path
+seg = pt.ip_path_change_split(paris_id, paths, 7)  # 7 because 7 different Paris ID in all
+print_seg(seg)
+"""
+Should expect:
+(0, 5, pattern={0: 'a', 1: None, 2: 'b', 3: 'b', 4: 'c', 5: 'b', 6: 'b'})
+(6, 9, pattern={0: None, 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: None, 6: None})
+(10, 10, pattern={0: None, 1: None, 2: None, 3: None, 4: None, 5: 'k', 6: None})
+(11, 31, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'b', 6: 'b'})
+(32, 32, pattern={0: None, 1: None, 2: None, 3: None, 4: None, 5: None, 6: 'k'})
+(33, 34, pattern={0: 'a', 1: 'b', 2: None, 3: None, 4: None, 5: None, 6: None}
+"""
+pt.ifp_change(seg, len(paris_id))
+# [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0]
+```
 
 ## Output
 Each json file in [data/path_analysis/](../data/path_analysis) follows the following structure:
@@ -44,8 +93,8 @@ We take care of two issues in this work:
 * how to handle reserved IPs, including private IP;
 * how to detect the presence of IXP.
 
-As a matter of fact, some IXPs use reserved IP blocks for inter-connection, these two issues are actually
-mingled with each other.
+As a matter of fact, some IXPs use reserved IP blocks for inter-connection. 
+Hence these two issues are actually mingled with each other.
 
 Our method is:
 
