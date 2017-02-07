@@ -4,4 +4,4 @@ pytz==2016.10
 ripe.atlas.cousteau==1.3
 python_dateutil==2.6.0
 ripe==0.0.4
-pysubnettress==0.23
+pysubnettree==0.23
