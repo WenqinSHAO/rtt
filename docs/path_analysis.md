@@ -138,30 +138,33 @@ Two IFP conflict with each other/differ when there is at least one Paris ID sati
 A tuple of (Paris ID, IP path) is compatible with an IFP as long as for the same Paris ID, the IP path is as well the same.
 In the case the IP path is not defined in the IFP, the compatibility is always established.
 
+An IFP is complete means all of its Paris ID is mapped to an IP path, i.e. non-empty.
+
 ### Simple/Vanilla detection
 A straightforward way of detecting IFP changes in IP path sequences along side with Paris ID is to construct IFP 
 by adopting compatible (Paris ID, IP path) tuple one by one, till the compatibility test failed start a new segment.
 The beginning of each resulted segment is then when IFP change happens. Here below the procedure in pseudo code:
 ```
-Algo: Simaple/Vanilla detection
-Input: sequence of (Paris ID, IP Path)
+Algo: simple_detection
+InPut: sequence of (Paris ID, IP Path)
 OutPut: sequence of segments in input following a same IFP
 
 1: segment.begin  <- 0 # idx starting from 0
 2: segment.end <- 0
-3: segment.IFP <- empty IFP, # not IP path is set for any of the Paris ID
-4: for idx, paris_id, path in Input:
-5:     if (paris_id, path) is compatible with segment.IFP
-6:         segmemt.end <- idx
-7:     else
-8:         add segment to OutPut
-9:         # start a new segment
-10:         segment.begin <- idx
-11:        segment.end <- idx
-12:        segment.IFP <- IFP with paris_id set to path
-13: if segment not in OutPut  # # in case leave the for loop while still inside a segment
-14:    add segment to Output
-15: return OutPut
+3: segment.IFP <- empty IFP, # no IP path is set for any of the Paris ID
+4: for idx, paris_id, path in InPut:
+5:     if (paris_id, path) is compatible with segment.IFP:
+6:         update segment.IFP by setting paris_id to path
+7:         segmemt.end <- idx
+8:     else:
+9:         add segment to OutPut
+10:         # start a new segment
+11:         segment.begin <- idx
+12:        segment.end <- idx
+13:        segment.IFP <- IFP with paris_id set to path
+14: if segment not in OutPut:  # in case leave the for loop while still inside a segment
+15:    add segment to Output
+16: return OutPut
 ```
 
 If we take the same example in [usage](path_analysis.md#usage) section, we'd be expecting result as the following:
@@ -173,6 +176,49 @@ print_seg(seg)
 (8, 16, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'k', 6: 'b'})
 (17, 31, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'b', 6: 'b'})
 (32, 34, pattern={0: 'a', 1: 'b', 2: None, 3: None, 4: None, 5: None, 6: 'k'})
-
 """
 ```
+
+### Backward extension
+With the simple detection, path segments following a same IFP is developed incrementally in a forwarding direction as the IP
+path sequence is presented.
+The drawback of this approach is evident. It delays the detection of actually IFP change, as once a new segment begins it always
+has the chance to fill up all the Paris IDs.
+If we look at the second segment from 8 to 16 in above example, we notice that all the IP paths starting from k, are all ready 
+compatible with the next segment from 17 to 31.
+Therefore chances are that the third segment begins from 11 instead of 17.
+
+However, one might argue that it is still theoretically correct that the 2nd segment from 8 to 16 represent a IP forwarding pattern
+unique and different from its neighbours.
+According to nature of network engineering (add reference here), network tend to have some dominant stable configurations 
+that lead to a few dominant IFP over the time. 
+That is to say, deviation from dominant/popular IFP is generally short living, sometimes not even able to present in all the Paris IDs.
+This rule of thumb justifies the observation that later part of 2nd segment should actually belong to 3nd segment, as the later is
+repeated more than once that more popular.
+
+In order to overcome such disadvantage of simple detection, we propose backward extension on top of simple detection, which extends the segment backwardly 
+(contrary to forwardingly in simple detection) if the later one is more popular among the two neighbouring segment.
+The pseudo code is give below:
+```
+Algo: backward_extension
+Input: sequence of (Paris ID, IP Path)
+OutPut: sequence of segments in input following a same IFP
+
+for two neighbouring segments seg and next_seg in simple_detction(InPut):
+    if (next_seg.IFP is complete) and (next_seg.IFP is repeated at least once) and (next_seg is longer than seg):
+        extend from the backward the next_seg into seg to the maximum
+return the updated segment sequence
+```
+
+We take again the example in [usage](path_analysis.md#usage) section, and apply backward extension to it:
+```python
+seg = pt.ip_path_change_bck_ext(paris_id, paths, 7)
+print_seg(seg)
+"""
+(0, 7, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'b', 4: 'c', 5: 'b', 6: 'b'})
+(8, 10, pattern={0: None, 1: None, 2: None, 3: 'a', 4: 'a', 5: 'k', 6: None})
+(11, 31, pattern={0: 'a', 1: 'b', 2: 'b', 3: 'a', 4: 'a', 5: 'b', 6: 'b'})
+(32, 34, pattern={0: 'a', 1: 'b', 2: None, 3: None, 4: None, 5: None, 6: 'k'})
+"""
+```
+
