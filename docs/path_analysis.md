@@ -112,7 +112,7 @@ according to [CAIDA AS relationship inference](auxiliary_data.md#caida-as-relati
 3. detect the presence of IXP for IPv4 traceroutes (as IXP related info is only available in IPv4) using heuristics proposed by [traIXroute](https://github.com/gnomikos/traIXroute.git);
 4. removed continuous repeated ASN in path.
 
-NOTE: [traIXroute](https://github.com/gnomikos/traIXroute.git) didn't try to remove reserved IPs even when it is possible.
+NOTE: [traIXroute](https://github.com/gnomikos/traIXroute.git) does not try to remove reserved IPs even when it is possible.
 This matters when such hop is next to IXP related addresses and prevents the detection.
 
 ## IP Forwarding Pattern change detection
@@ -152,21 +152,21 @@ Algo: simple_detection
 InPut: sequence of (Paris ID, IP Path)
 OutPut: sequence of path segments in InPut following a same IFP
 
-1: segment.begin  <- 0 # idx starting from 0
-2: segment.end <- 0
-3: segment.IFP <- empty IFP, # no IP path is set for any of the Paris ID
-4: for idx, paris_id, path in InPut:
-5:     if (paris_id, path) is compatible with segment.IFP:
-6:         update segment.IFP by setting paris_id to path
-7:         segmemt.end <- idx
-8:     else:
-9:         add segment to OutPut
+1:  segment.begin  <- 0 # idx starting from 0
+2:  segment.end <- 0
+3:  segment.IFP <- empty IFP, # no IP path is set for any of the Paris ID
+4:  for idx, paris_id, path in InPut:
+5:      if (paris_id, path) is compatible with segment.IFP:
+6:          update segment.IFP by setting paris_id to path
+7:          segmemt.end <- idx
+8:      else:
+9:          add segment to OutPut
 10:         # start a new segment
 11:         segment.begin <- idx
-12:        segment.end <- idx
-13:        segment.IFP <- IFP with paris_id set to path
+12:         segment.end <- idx
+13:         segment.IFP <- IFP with paris_id set to path
 14: if segment not in OutPut:  # in case leaving the for loop while still inside a segment
-15:    add segment to Output
+15:     add segment to Output
 16: return OutPut
 ```
 
@@ -219,12 +219,12 @@ Algo: backward_extension
 InPut: sequence of (Paris ID, IP Path)
 OutPut: sequence of path segments in InPut following a same IFP
 
-1: for two neighbouring segments seg and next_seg in simple_detction(InPut):
-2:     if (next_seg.IFP is complete) and (next_seg.length >= 2 * number of IFP) and (next_seg is longer than seg):
-3:         # the first two criteria ensure that the IFP of next_seg is not a temporary one;
-4:         # the last criteria ensures that we always enlarge the presence of the more popular IFP;
-5:         extend from the backward the next_seg into seg to the maximum
-6: return the updated segment sequence
+1:  for two neighbouring segments seg and next_seg in simple_detction(InPut):
+2:      if (next_seg.IFP is complete) and (next_seg.length >= 2 * number of IFP) and (next_seg is longer than seg):
+3:          # the first two criteria ensure that the IFP of next_seg is not a temporary one;
+4:          # the last criteria ensures that we always enlarge the presence of the more popular IFP;
+5:          extend from the backward the next_seg into seg to the maximum
+6:  return the updated segment sequence
 ```
 
 We take again the example in [usage](path_analysis.md#usage) section, and apply backward extension to it:
@@ -266,21 +266,21 @@ Algo: split_and_merge
 InPut: sequence of (Paris ID, IP Path)
 OutPut: sequence of path segments in InPut following a same IFP
 
-segment_seq <- backward_extension(InPut)
-popular_pattern <- any complete IFP that ever lasts more than 2 * Paris ID in length continuously in segment_seq
-for idx, segment in segment_seq:
-    if 2 < segment.length < 2 * number of Paris ID:  # can be split and not popular
-        for all path_idx, paris_id, path but last one in segment:
-            find the longest sub-segment starting from path_idx that matches any of popular_pattern
-        find the longest sub-segment that matches with popular pattern among all the inspected positions
-        if the resulted sub-segment is longer than 1:
-            split the segment according to the identified sub-segment
-for two neighbouring segments seg and next_seg in above split segment_seq:
-     if both segments are shorter than 2 * number of Paris ID:
-         if seg.IFP mathces with next_seg.IFP:
-             if merge(seg, next_seg).IFP matches any of the popular_pattern:
-                 merge seg and next_seg later on
-return updated segment_seq
+1:  segment_seq <- backward_extension(InPut)
+2:  popular_pattern <- any complete IFP that ever lasts more than 2 * Paris ID in length continuously in segment_seq
+3:  for idx, segment in segment_seq:
+4:      if 2 < segment.length < 2 * number of Paris ID:  # can be split and not popular
+5:          for all path_idx, paris_id, path but last one in segment:
+6:              find the longest sub-segment starting from path_idx that matches any of popular_pattern
+7:          find the longest sub-segment that matches with popular pattern among all the inspected positions
+8:          if the resulted sub-segment is longer than 1:
+9:              split the segment according to the identified sub-segment
+10: for two neighbouring segments seg and next_seg in above split segment_seq:
+11:     if both segments are shorter than 2 * number of Paris ID:
+12:         if seg.IFP mathces with next_seg.IFP:
+13:             if merge(seg, next_seg).IFP matches any of the popular_pattern:
+14:                 merge seg and next_seg later on
+15: return updated segment_seq
 ```
 
 We apply this further refined method to the example and find the output now catches
