@@ -128,83 +128,66 @@ it is possible that certain change alters only the path taken by the Paris IDs n
 
 In order to detect IP path change not due to load balancing, we introduce the notion of IP Forwarding Pattern (IFP).
 IFP is defined as the ensemble of mappings from **all** possible Paris IDs to IP paths correspondingly taken.
-We use IFP to describe the forwarding status/configuration of a sub-sequence of IP path measurements.
-
-When the IFPs attached to two neighbouring IP sequences differ, 
-it indicates that there is a change in IP path other than those due to load-balancing.
-Therefore, instead of detecting changes in bare IP path, we detect changes in IFP over a sequence of IP paths..
-
-More formally:
+More formally an IFP is defined as:
 ```
-{x -> y | x \in X, y \in Y}, where
-X is the ensemble of Paris IDs and Y is the ensemble of IP paths.
+{x -> y | x \in X, y \in Y}, 
 ```
+where `X` is the ensemble of Paris IDs and `Y` is the ensemble of IP paths.
+For each `x \in X`, it should be mapped to one and only one `y`, thus an IFP can as well be
+regarded as a function `f(x) -> y`.
 
-
+IFP is used to describe contiguous IP path sub-sequence, referred to as **segment** later on.
+For the path sequence `T` given below , we have `X = {x| 0<= x < 7, x \in Z}` for all potential IFPs.
 ```
-# Example of Paris ID and path sequences in time
-
-# s is sequence of Paris ID
-# index     0  1  2  3  4  5  6
-S =        [2, 3, 4, 5, 6, 0, 1,
-            2, 3, 4, 5, 6, 0, 1,
-            2, 3, 4, 5, 6, 0, 1,
-            2, 3, 4, 5, 6, 0, 1,
-            2, 3, 4, 5, 6, 0, 1]
-
 # t is sequence of IP path
 # for the brevity of demonstration, each character stands for an unique IP path
-# index     0  1  2  3  4  5  6
+# Paris ID  2  3  4  5  6  0  1
 T =        [b, b, c, b, b, a, b,
             b, a, a, k, b, a, b,
             b, a, a, b, b, a, b,
             b, a, a, b, b, a, b,
             b, a, a, b, k, a, b]
 ```
-
-For the above example , we have `X = Unique(S) = {x| 0<= x < 7, x \in Z}` for all potential IFPs.
-In the case of Atlas built-in traceroute, X would be 
-```
-X = { x | 0 <= x < 16, x \in Z}.
-```
-
-A mapping must be defined for each Paris ID in `X`  in an IFP, even though the underlying path sequence segment
-doesn't cover all of them.
-For example, the IFP for the first three IP path in the given example `S_{0:2}, T_{0:2}` would be:
+The IFP for the segment `S_{0:2}, T_{0:2}` would be:
 ```
 {0->\iota, 1->\itoa, 2->b, 3->b, 4->c, 5->\iota, 6->\iota}
 ```
 `\iota` is a wild card IP path element, i.e. `\iota = x, for \all x \in X`.
 `\iota` is set for all the Paris ID that doesn't have a mapping definition according to the given path sequence segment.
 
-We call an IFP `f` is **complete** if:
-```
-x -> \iota \not in f, for \all x \in X
-```
+Apparently not all segments in `T` can be described by one single segment.
+For example, segment `T_{0:8}` experiences two different path `b` and `a` for Paris ID 3.
+we can assume that from `T_8` a different IFP takes place, probably caused by a different routing scheme, 
+e.g. a different IGP configuration, AS path change, etc.
 
-Apparently an IFP can't not span over an arbitrary length of IP paths.
-For example, it is not possible to define an IFP for `S_{0:8}, T_{0:8}`. 
-Because for Paris ID 1, it has different IP path mappings, `b` and `a`.
-And we can assume that from `s_8, t_8` a different routing scheme, e.g. a different IGP configuration, 
-AS path change, etc. has taken place, as IFP changes.
 
-More formally, we define that two IFPs `f1 and f2` are **different** if (only applicable to IFP with same X):
-```
-f1 \nsim f2, if exisits x \in X, f1(x) \neq f2_(x);
-
-```
-`f1` and `f2` are compatible if:
-```
-f1 ~ f2, if for \all x \in X, f1(x) = f2(x).
-```
-
-We intend to cut a IP path sequence along with Paris ID into segments, where:
+We intend to find segments of a given path sequence annotated by Paris ID, where:
 
 * each segment follows one single IFP;
 * two neighbouring segments follow different IFPs.
 
-Such cut is not unique. We seek to identify those are most reasonable in the context of networking.
+Such segmentation is not unique. We seek to identify those are most reasonable in the context of networking.
 
+
+In order to ease the exploration, we define following notions as well.
+We say that two IFPs `f1 and f2` are **conflicting**, `f1 \nsim f2` if (only applicable to IFP with same X):
+```
+\exisits x \in X, f1(x) \neq f2_(x);
+
+```
+`f1` and `f2` are **compatible**, `f1 ~ f2`, if:
+```
+for \all x \in X, f1(x) = f2(x).
+```
+We say a path `t` is **compatible** with IFP `f` , `t \sim\in f`if:
+```
+f(t.paris_id) = t
+```
+
+We call an IFP `f` is **complete** if:
+```
+x -> \iota \not in f, for \all x \in X
+```
 
 ### Forward inclusion
 A straightforward way of detecting IFP changes in IP path sequences along side with Paris ID is to construct segments
@@ -213,14 +196,14 @@ Till the compatibility test failed, a new segment is started with a new IFP.
 The beginning of each resulted segment is then when IFP change happens. Here below the procedure in pseudo code:
 ```
 Algo: forward_inclusion
-InPut: S, T                                     # S is sequence of Paris ID, T is sequence of corresponding IP path
+InPut: S, T                                     # S is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence
 OutPut: O                                       # O is sequence of path segments
 
 1:  seg.begin <- 0                              # the begining index of a segment in S and T
 2:  seg.end <- 0                                # the end index of a segment in S and T
-3:  seg.f <- {x -> \iota | x \in Unique(S)}     # IFP of the segment
-4:  for s, t, path \in e(S, T):
-5:      if f(s) = t:
+3:  seg.f <- {x -> \iota | x \in S}     # IFP of the segment
+4:  for t, path \in T):
+5:      if t \sim\in f:
 6:          f(s) <- t
 7:          seg.end <- index of t
 8:      else:
@@ -281,13 +264,13 @@ which extends the segment backwardly if the later one is more popular among the 
 The pseudo code is give below:
 ```
 Algo: backward_extension
-InPut: S, T                                             # S is sequence of Paris ID, T is sequence of corresponding IP path
+InPut: S, T                                             # S is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence
 OutPut: O                                               # O is sequence of path segments
 
 1:  O <- forward_inclusion(S, T)
 2:  for seg, next_seg \in O:
 3:      if (next_seg.f is complete) and                 # the IFP of next_seg should fully repeated at least once
-4:          (next_seg.length >= 2 * |Unique(S)|) and  
+4:          (next_seg.length >= 2 * |S|) and  
 5:          (next_seg.length > seg.length):             # we always enlarge the presence of the more popular (even locally) IFP
 6:          while Ture:
 7:              if S_{seg.end} -> T{seg.end} \in next_seg.f:
@@ -334,19 +317,19 @@ Then we check again for all the neighbouring segments if them can be merged to m
 Here below the pseudo code:
 ```
 Algo: split_and_merge
-InPut: S, T                                             
-OutPut: O                                             
+InPut: S, T               # S is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence                              
+OutPut: O                 # O is sequence of path segments                            
 
 1:  O <- backward_extension(S, T)
-2:  p <- {seg.f | seg \in O, seg.length > 2 * |Unique(S)| is complete, seg.f is complete}   # popular IFPs
+2:  p <- {seg.f | seg \in O, seg.length > 2 * |S|, seg.f is complete}                       # popular IFPs
 3:  for seg in O:
-4:      if 2 < seg.length < 2 * |Unique(S)|:
+4:      if 2 < seg.length < 2 * |S|:
 5:          E <- {i | seg.begin <= i.begin < i.end <= seg.end, \exisits f \in p, f ~ i.f}   # sub-segment matches with popular IFPs
 6:          e <- {i | i \in E, i.length = MAX(1, MAX_{j \in E}(j.length))}                  # longest sub-segment have more than 2 paths
 7:          if e \neq \emptyset:
 8:              split seg by one arbirarty i \in e
 9:  for seg, next_seg in O:
-10:     if seg.length < 2 * |Unique(S)| and next_seg.length < 2 * |Unique(S)|:
+10:     if seg.length < 2 * |S| and next_seg.length < 2 * |S|:
 11:         if seg.f ~ next_seg.f:
 12:             merge_seg = seg \frown next_seg                                             # tentativly merge the two segments
 13:             if {f | f ~ merge_seg.f, f \in p} \neq \emptyset:
