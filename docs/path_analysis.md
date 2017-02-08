@@ -117,60 +117,119 @@ This matters when such hop is next to IXP related addresses and prevents the det
 
 ## IP Forwarding Pattern change detection
 RIPE Atlas uses Paris-traceroute in built-in traceroute.
-In order to discover the IP path diversity, it uses rotating Paris IDs from 0 to 15, incremented by 1 each time.
+In order to discover the IP path diversity, it uses rotating Paris IDs from 0 to 15. 
+Each time, the Paris ID used is incremented by 1. When reaches 15, it comes back to 0.
 This design has two major consequences in detecting IP-leve path changes:
 
 1. Challenge: two neighbouring traceroute could naturally report two different IP paths due to load-balancing;
 however that doesn't mean that any change in IP forwarding has ever taken place.
-2. Benefit: it enlarges the chances of detecting changes in IP forwarding. If traceroute is locked on one single Paris ID,
+2. Benefit: it enlarges the chance of detecting changes in IP forwarding. If traceroute is locked on one single Paris ID,
 it is possible that certain change alters only the path taken by the Paris IDs not used in the measurements, resulting false negative.
 
 In order to detect IP path change not due to load balancing, we introduce the notion of IP Forwarding Pattern (IFP).
-Instead of detecting changes in bare IP path, we detect changes in IFP.
-It is defined as the ensemble mapping relationship between all possible Paris IDs and IP paths taken.
-More formally for a case with 4 different Paris ID from 0 to 3:
+IFP is defined as the ensemble of mappings from **all** possible Paris IDs to IP paths correspondingly taken.
+We use IFP to describe the forwarding status/configuration of a sub-sequence of IP path measurements.
+
+When the IFPs attached to two neighbouring IP sequences differ, 
+it indicates that there is a change in IP path other than those due to load-balancing.
+Therefore, instead of detecting changes in bare IP path, we detect changes in IFP over a sequence of IP paths..
+
+More formally:
 ```
-IpForwardingPattern({0:IpPath, 1:IpPath, 2:IpPath, 3:IpPath})
+{x -> y | x \in X, y \in Y}, where
+X is the ensemble of Paris IDs and Y is the ensemble of IP paths.
 ```
-Two IFP conflict with each other/differ when there is at least one Paris ID satisfying both requirements:
 
-1. both IFP have defined IP path for this Paris ID, i.e. the IP path is not None/empty;
-2. the two IP paths are different, in the sense that any hop is different or hop sequence is different etc.
 
-A tuple of (Paris ID, IP path) is compatible with an IFP as long as for the same Paris ID, the IP path is as well the same.
-In the case the IP path is not defined in the IFP, the compatibility is always established.
+```
+# Example of Paris ID and path sequences in time
 
-An IFP is complete means all of its Paris ID is mapped to an IP path, i.e. non-empty.
+# s is sequence of Paris ID
+# index     0  1  2  3  4  5  6
+S =        [2, 3, 4, 5, 6, 0, 1,
+            2, 3, 4, 5, 6, 0, 1,
+            2, 3, 4, 5, 6, 0, 1,
+            2, 3, 4, 5, 6, 0, 1,
+            2, 3, 4, 5, 6, 0, 1]
 
-### Simple/Vanilla detection/Forward expansion
-A straightforward way of detecting IFP changes in IP path sequences along side with Paris ID is to construct path segments
-following a same IFP by adopting compatible (Paris ID, IP path) tuple one by one, i.e. forward expansion. 
+# t is sequence of IP path
+# for the brevity of demonstration, each character stands for an unique IP path
+# index     0  1  2  3  4  5  6
+T =        [b, b, c, b, b, a, b,
+            b, a, a, k, b, a, b,
+            b, a, a, b, b, a, b,
+            b, a, a, b, b, a, b,
+            b, a, a, b, k, a, b]
+```
+
+For the above example , we have `X = Unique(S) = {x| 0<= x < 7, x \in Z}` for all potential IFPs.
+In the case of Atlas built-in traceroute, X would be 
+```
+X = { x | 0 <= x < 16, x \in Z}.
+```
+
+A mapping must be defined for each Paris ID in `X`  in an IFP, even though the underlying path sequence segment
+doesn't cover all of them.
+For example, the IFP for the first three IP path in the given example `S_{0:2}, T_{0:2}` would be:
+```
+{0->\iota, 1->\itoa, 2->b, 3->b, 4->c, 5->\iota, 6->\iota}
+```
+`\iota` is a whild card IP path element, i.e. `\iota = x, for \all x \in X`.
+`\iota` is set for all the Paris ID that doesn't have a mapping definition according to the given path sequence segment.
+
+We call an IFP `f` is **complete** if:
+```
+x -> \iota \not in f, for \all x \in X
+```
+
+Apparently an IFP can't not span over an arbitrary length of IP paths.
+For example, it is not possible to define an IFP for `S_{0:8}, T_{0:8}`. 
+Because for Paris ID 1, it has different IP path mappings, `b` and `a`.
+And we can assume that from `s_8, t_8` a different routing scheme, e.g. a different IGP configuration, 
+AS path change, etc. has taken place, as IFP changes.
+
+More formally, we define that two IFPs `f1 and f2` are different if (only applicable to IFP with same X):
+```
+f1 != f2, if exisits x \in X, f1(x) \neq f2_(x);
+f1 ~ f2, if for \all x \in X, f1(x) = f2(x).
+```
+
+We intend to cut a IP path sequence along with Paris ID into segments, where:
+
+* each segment follows one single IFP;
+* two neighbouring segments follow different IFPs.
+
+Such cut is not unique as we will see. We seek to identify those are most reasonable in the context of networking.
+
+
+### Simple/Vanilla detection/Forward inclusion
+A straightforward way of detecting IFP changes in IP path sequences along side with Paris ID is to construct segments
+following a same IFP by adopting compatible IP path one by one, i.e. forward inclusion. 
 Till the compatibility test failed, a new segment is started with a new IFP.
 The beginning of each resulted segment is then when IFP change happens. Here below the procedure in pseudo code:
 ```
-Algo: simple_detection
-InPut: sequence of (Paris ID, IP Path)
-OutPut: sequence of path segments in InPut following a same IFP
+Algo: forward_inclusion
+InPut: S, T                                     # S is sequence of Paris ID, T is sequence of corresponding IP path
+OutPut: O                                       # O is sequence of path segments
 
-1:  segment.begin  <- 0 # idx starting from 0
-2:  segment.end <- 0
-3:  segment.IFP <- empty IFP, # no IP path is set for any of the Paris ID
-4:  for idx, paris_id, path in InPut:
-5:      if (paris_id, path) is compatible with segment.IFP:
-6:          update segment.IFP by setting paris_id to path
-7:          segmemt.end <- idx
+1:  seg.begin <- 0                              # the begining index of a segment in S and T
+2:  seg.end <- 0                                # the end index of a segment in S and T
+3:  seg.f <- {x -> \iota | x \in Unique(S)}     # IFP of the segment
+4:  for s, t, path \in e(S, T):
+5:      if f(s) = t:
+6:          f(s) <- t
+7:          seg.end <- index of t
 8:      else:
-9:          add segment to OutPut
-10:         # start a new segment
-11:         segment.begin <- idx
-12:         segment.end <- idx
-13:         segment.IFP <- IFP with paris_id set to path
-14: if segment not in OutPut:  # in case leaving the for loop while still inside a segment
-15:     add segment to Output
-16: return OutPut
+9:          append seg to O
+11:         seg.begin <- index of t             # create new segment
+12:         seg.end <- index of t
+13:         seg.f <- {x -> t if x = s else x -> \iota | x \in Unique(S)}
+14: if (begin, end, f) not in O:                # in case leaving the for loop while still inside a segment
+15:     append seg to O
+16: return O
 ```
 
-If we take the same example in [usage](path_analysis.md#usage) section, we'd be expecting result as the following:
+If we take the example seen above, which is the same [usage](path_analysis.md#usage) section, we'd be expecting result as the following:
 ```python
 seg = pt.ip_path_change_simple(paris_id, paths, 7)
 print_seg(seg)
@@ -183,12 +242,13 @@ print_seg(seg)
 ```
 
 ### Backward extension
-With the simple detection, path segments following a same IFP are developed incrementally in a forwarding direction as the IP
-path sequence is presented.
+With the simple detection, path sequence segments following a same IFP are developed incrementally in a forwarding direction 
+as the IP path sequence is presented in time.
 The drawback of this approach is evident. It potentially delays the detection of actually IFP changes, as once a new segment begins it always
 has the chance to fill up all the Paris IDs.
 
-If we look at the second segment from 8 to 16 in the above example, we notice that all the IP paths starting from path k (exclusive),
+If we look at the second segment `S_{8:16}, T_{8:16}` in the above example, 
+we notice that all the IP paths starting from `S_{10}, T_{10}`, i.e. k, (exclusive),
 are all ready compatible with the next segment from 17 to 31.
 ```
   0    1    2    3    4    5    6
@@ -203,10 +263,12 @@ Therefore chances are that the third segment begins from 11 (right after path k)
 One might argue that it is still theoretically correct that the 2nd segment from 8 to 16 represent a IP forwarding pattern
 unique and different from its neighbours, which is true.
 
-However, according to the nature of network engineering/previous study (add reference here), networks tend to have some stable configurations 
-that lead to a few dominant IFPs over time. 
-That is to say, deviation from dominant/popular IFP is generally short living, sometimes not even able to present in all the Paris IDs. 
-(Note, Paris IDs is sequentially scanned from 0 to 15, which takes at least 450min (30min * 15) to go through all of them for built-in traceroute.)
+However, according to the nature of network engineering/previous study (add reference here), 
+networks tend to have some stable configurations that lead to a few dominant paths over time. 
+That is to say, deviation from dominant/popular IFP is generally short living, 
+sometimes not even able to present in all the Paris IDs. 
+(Note, Paris IDs is sequentially scanned from 0 to 15, 
+which takes at least 450min (30min * 15) to go through all of them for RIPE Atlas built-in traceroute.)
 This rule of thumb justifies the observation that the later part of 2nd segment should actually belong to 3nd segment, 
 as the IFP of later segment is fully repeated at least once and lasts longer than the 2nd segment, thus more popular.
 
@@ -216,18 +278,24 @@ which extends the segment backwardly
 The pseudo code is give below:
 ```
 Algo: backward_extension
-InPut: sequence of (Paris ID, IP Path)
-OutPut: sequence of path segments in InPut following a same IFP
+InPut: S, T                                             # S is sequence of Paris ID, T is sequence of corresponding IP path
+OutPut: O                                               # O is sequence of path segments
 
-1:  for two neighbouring segments seg and next_seg in simple_detction(InPut):
-2:      if (next_seg.IFP is complete) and (next_seg.length >= 2 * number of IFP) and (next_seg is longer than seg):
-3:          # the first two criteria ensure that the IFP of next_seg is not a temporary one;
-4:          # the last criteria ensures that we always enlarge the presence of the more popular IFP;
-5:          extend from the backward the next_seg into seg to the maximum
-6:  return the updated segment sequence
+1:  O <- forward_inclusion(S, T)
+2:  for seg, next_seg \in O:
+3:      if (next_seg.f is complete) and                 # the IFP of next_seg should fully repeated at least once
+4:          (next_seg.length >= 2 * |Unique(S)|) and  
+5:          (next_seg.length > seg.length):             # we always enlarge the presence of the more popular (even locally) IFP
+6:          while Ture:
+7:              if S_{seg.end} -> T{seg.end} \in next_seg.f:
+8:                  next_seg.begin <- seg.end
+9:                  seg.end <- seg.end -1
+10:             else:
+11:                 break
+12:  return O
 ```
 
-We take again the example in [usage](path_analysis.md#usage) section, and apply backward extension to it:
+We take again the same example, and apply backward extension to it:
 ```python
 seg = pt.ip_path_change_bck_ext(paris_id, paths, 7)
 print_seg(seg)
@@ -245,12 +313,12 @@ It still falls short in pinpointing the short deviations from major IFP.
 
 Let's look again at the example. With human pattern recognition power and some
 familiarity with the topic, we might easily spot that the path k in the 2nd
-segment is actually a short deviation from major pattern.
+segment, i.e. `S_{10}, T{10}` is actually a short deviation from major pattern.
 The beginning of 2nd segment together with the tail of 1st segment (enclosed by '|' in beneath illustration) 
 actually match with the major pattern (IFP of 3rd segment) and makes them (concatenated) a more appropriate segmentation.
 ```
   0    1    2    3    4    5    6
-['b', 'b', 'c',|'b', 'b', 'a', 'b',  # path sequence enclosed by | match with major IFP
+['b', 'b', 'c',|'b', 'b', 'a', 'b',  # path sequence segment enclosed by | matches with major IFP
  'b',('a', 'a',|'k', 'b', 'a', 'b',  # 2nd segment marked in ()
  'b', 'a', 'a',)'b', 'b', 'a', 'b',
  'b', 'a', 'a', 'b', 'b', 'a', 'b',
@@ -263,24 +331,24 @@ Then we check again for all the neighbouring segments if them can be merged to m
 Here below the pseudo code:
 ```
 Algo: split_and_merge
-InPut: sequence of (Paris ID, IP Path)
-OutPut: sequence of path segments in InPut following a same IFP
+InPut: S, T                                             
+OutPut: O                                             
 
-1:  segment_seq <- backward_extension(InPut)
-2:  popular_pattern <- any complete IFP that ever lasts more than 2 * Paris ID in length continuously in segment_seq
-3:  for idx, segment in segment_seq:
-4:      if 2 < segment.length < 2 * number of Paris ID:  # can be split and not popular
-5:          for all path_idx, paris_id, path but last one in segment:
-6:              find the longest sub-segment starting from path_idx that matches any of popular_pattern
-7:          find the longest sub-segment that matches with popular pattern among all the inspected positions
-8:          if the resulted sub-segment is longer than 1:
-9:              split the segment according to the identified sub-segment
-10: for two neighbouring segments seg and next_seg in above split segment_seq:
-11:     if both segments are shorter than 2 * number of Paris ID:
-12:         if seg.IFP mathces with next_seg.IFP:
-13:             if merge(seg, next_seg).IFP matches any of the popular_pattern:
-14:                 merge seg and next_seg later on
-15: return updated segment_seq
+1:  O <- backward_extension(InPut)
+2:  p <- {seg.f | seg \in O, seg.length > 2 * |Unique(S)| is complete, seg.f is complete}
+3:  for seg in O:
+4:      if 2 < seg.length < 2 * |Unique(S)|:
+5:          E <- {i | seg.begin <= i.begin < i.end <= seg.end, \exisits f \in p, f ~ i.f}
+6:          e <- {i | i \in E, i.length = MAX(1, MAX_{j \in E}(j.length))}
+7:          if e \neq \emptyset:
+8:              split seg by one arbirarty i \in e
+9:  for seg, next_seg in O:
+10:     if seg.length < 2 * |Unique(S)| and next_seg.length < 2 * |Unique(S)|:
+11:         if seg.f ~ next_seg.f:
+12:             merge_seg = seg \frown next_seg
+13:             if {f | f ~ merge_seg, f \in p} \neq \emptyset:
+14:                 merge seg, next_seg
+15: return O
 ```
 
 We apply this further refined method to the example and find the output now catches
