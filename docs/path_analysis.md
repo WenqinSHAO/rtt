@@ -264,7 +264,7 @@ which extends the segment backwardly if the later one is more popular among the 
 The pseudo code is give below:
 ```
 Algo: backward_extension
-InPut: X, T                                             # S is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence
+InPut: X, T                                             # X is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence
 OutPut: O                                               # O is sequence of path segments
 
 1:  O <- forward_inclusion(X, T)
