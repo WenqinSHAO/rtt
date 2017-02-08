@@ -196,15 +196,15 @@ Till the compatibility test failed, a new segment is started with a new IFP.
 The beginning of each resulted segment is then when IFP change happens. Here below the procedure in pseudo code:
 ```
 Algo: forward_inclusion
-InPut: S, T                                     # S is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence
+InPut: X, T                                     # X is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence
 OutPut: O                                       # O is sequence of path segments
 
 1:  seg.begin <- 0                              # the begining index of a segment in S and T
 2:  seg.end <- 0                                # the end index of a segment in S and T
-3:  seg.f <- {x -> \iota | x \in S}     # IFP of the segment
+3:  seg.f <- {x -> \iota | x \in X}     # IFP of the segment
 4:  for t, path \in T):
 5:      if t \sim\in f:
-6:          f(s) <- t
+6:          f(t.paris_id) <- t
 7:          seg.end <- index of t
 8:      else:
 9:          append seg to O
@@ -264,13 +264,13 @@ which extends the segment backwardly if the later one is more popular among the 
 The pseudo code is give below:
 ```
 Algo: backward_extension
-InPut: S, T                                             # S is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence
+InPut: X, T                                             # S is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence
 OutPut: O                                               # O is sequence of path segments
 
-1:  O <- forward_inclusion(S, T)
+1:  O <- forward_inclusion(X, T)
 2:  for seg, next_seg \in O:
 3:      if (next_seg.f is complete) and                 # the IFP of next_seg should fully repeated at least once
-4:          (next_seg.length >= 2 * |S|) and  
+4:          (next_seg.length >= 2 * |X|) and  
 5:          (next_seg.length > seg.length):             # we always enlarge the presence of the more popular (even locally) IFP
 6:          while Ture:
 7:              if S_{seg.end} -> T{seg.end} \in next_seg.f:
@@ -317,19 +317,19 @@ Then we check again for all the neighbouring segments if them can be merged to m
 Here below the pseudo code:
 ```
 Algo: split_and_merge
-InPut: S, T               # S is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence                              
+InPut: X, T               # X is ensemble of all Paris IDs, T is the Paris ID annoteated path sequence                              
 OutPut: O                 # O is sequence of path segments                            
 
-1:  O <- backward_extension(S, T)
-2:  p <- {seg.f | seg \in O, seg.length > 2 * |S|, seg.f is complete}                       # popular IFPs
+1:  O <- backward_extension(X, T)
+2:  p <- {seg.f | seg \in O, seg.length > 2 * |X|, seg.f is complete}                       # popular IFPs
 3:  for seg in O:
-4:      if 2 < seg.length < 2 * |S|:
+4:      if 2 < seg.length < 2 * |X|:
 5:          E <- {i | seg.begin <= i.begin < i.end <= seg.end, \exisits f \in p, f ~ i.f}   # sub-segment matches with popular IFPs
 6:          e <- {i | i \in E, i.length = MAX(1, MAX_{j \in E}(j.length))}                  # longest sub-segment have more than 2 paths
 7:          if e \neq \emptyset:
 8:              split seg by one arbirarty i \in e
 9:  for seg, next_seg in O:
-10:     if seg.length < 2 * |S| and next_seg.length < 2 * |S|:
+10:     if seg.length < 2 * |X| and next_seg.length < 2 * |X|:
 11:         if seg.f ~ next_seg.f:
 12:             merge_seg = seg \frown next_seg                                             # tentativly merge the two segments
 13:             if {f | f ~ merge_seg.f, f \in p} \neq \emptyset:
