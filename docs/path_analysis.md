@@ -174,7 +174,7 @@ For example, the IFP for the first three IP path in the given example `S_{0:2}, 
 ```
 {0->\iota, 1->\itoa, 2->b, 3->b, 4->c, 5->\iota, 6->\iota}
 ```
-`\iota` is a whild card IP path element, i.e. `\iota = x, for \all x \in X`.
+`\iota` is a wild card IP path element, i.e. `\iota = x, for \all x \in X`.
 `\iota` is set for all the Paris ID that doesn't have a mapping definition according to the given path sequence segment.
 
 We call an IFP `f` is **complete** if:
@@ -188,9 +188,13 @@ Because for Paris ID 1, it has different IP path mappings, `b` and `a`.
 And we can assume that from `s_8, t_8` a different routing scheme, e.g. a different IGP configuration, 
 AS path change, etc. has taken place, as IFP changes.
 
-More formally, we define that two IFPs `f1 and f2` are different if (only applicable to IFP with same X):
+More formally, we define that two IFPs `f1 and f2` are **different** if (only applicable to IFP with same X):
 ```
-f1 != f2, if exisits x \in X, f1(x) \neq f2_(x);
+f1 \nsim f2, if exisits x \in X, f1(x) \neq f2_(x);
+
+```
+`f1` and `f2` are compatible if:
+```
 f1 ~ f2, if for \all x \in X, f1(x) = f2(x).
 ```
 
@@ -199,10 +203,10 @@ We intend to cut a IP path sequence along with Paris ID into segments, where:
 * each segment follows one single IFP;
 * two neighbouring segments follow different IFPs.
 
-Such cut is not unique as we will see. We seek to identify those are most reasonable in the context of networking.
+Such cut is not unique. We seek to identify those are most reasonable in the context of networking.
 
 
-### Simple/Vanilla detection/Forward inclusion
+### Forward inclusion
 A straightforward way of detecting IFP changes in IP path sequences along side with Paris ID is to construct segments
 following a same IFP by adopting compatible IP path one by one, i.e. forward inclusion. 
 Till the compatibility test failed, a new segment is started with a new IFP.
@@ -242,7 +246,7 @@ print_seg(seg)
 ```
 
 ### Backward extension
-With the simple detection, path sequence segments following a same IFP are developed incrementally in a forwarding direction 
+With the forward inclusion, path sequence segments following a same IFP are developed incrementally in a forwarding direction 
 as the IP path sequence is presented in time.
 The drawback of this approach is evident. It potentially delays the detection of actually IFP changes, as once a new segment begins it always
 has the chance to fill up all the Paris IDs.
@@ -272,9 +276,8 @@ which takes at least 450min (30min * 15) to go through all of them for RIPE Atla
 This rule of thumb justifies the observation that the later part of 2nd segment should actually belong to 3nd segment, 
 as the IFP of later segment is fully repeated at least once and lasts longer than the 2nd segment, thus more popular.
 
-Basing on such understanding, we propose backward extension on top of simple detection/forward expansion,
-which extends the segment backwardly 
-(contrary to forwardingly in simple detection) if the later one is more popular among the two neighbouring segment.
+Basing on such understanding, we propose backward extension on top of forward inclusion,
+which extends the segment backwardly if the later one is more popular among the two neighbouring segments.
 The pseudo code is give below:
 ```
 Algo: backward_extension
@@ -334,19 +337,19 @@ Algo: split_and_merge
 InPut: S, T                                             
 OutPut: O                                             
 
-1:  O <- backward_extension(InPut)
-2:  p <- {seg.f | seg \in O, seg.length > 2 * |Unique(S)| is complete, seg.f is complete}
+1:  O <- backward_extension(S, T)
+2:  p <- {seg.f | seg \in O, seg.length > 2 * |Unique(S)| is complete, seg.f is complete}   # popular IFPs
 3:  for seg in O:
 4:      if 2 < seg.length < 2 * |Unique(S)|:
-5:          E <- {i | seg.begin <= i.begin < i.end <= seg.end, \exisits f \in p, f ~ i.f}
-6:          e <- {i | i \in E, i.length = MAX(1, MAX_{j \in E}(j.length))}
+5:          E <- {i | seg.begin <= i.begin < i.end <= seg.end, \exisits f \in p, f ~ i.f}   # sub-segment matches with popular IFPs
+6:          e <- {i | i \in E, i.length = MAX(1, MAX_{j \in E}(j.length))}                  # longest sub-segment have more than 2 paths
 7:          if e \neq \emptyset:
 8:              split seg by one arbirarty i \in e
 9:  for seg, next_seg in O:
 10:     if seg.length < 2 * |Unique(S)| and next_seg.length < 2 * |Unique(S)|:
 11:         if seg.f ~ next_seg.f:
-12:             merge_seg = seg \frown next_seg
-13:             if {f | f ~ merge_seg, f \in p} \neq \emptyset:
+12:             merge_seg = seg \frown next_seg                                             # tentativly merge the two segments
+13:             if {f | f ~ merge_seg.f, f \in p} \neq \emptyset:
 14:                 merge seg, next_seg
 15: return O
 ```
