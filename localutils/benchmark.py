@@ -124,7 +124,7 @@ def weighting(trace, fact):
     seg_median_diff = np.abs(np.array(seg_median[1:])-np.array(seg_median[:-1]))
     seg_std = [np.std(trace[i[0]:i[1]]) for i in seg]
     seg_std_diff = np.abs(np.array(seg_std[1:])-np.array(seg_std[:-1]))
-    return np.maximum(np.log2(np.array(seg_len[1:])/3), 0) * (seg_median_diff + np.sqrt(seg_std_diff))
+    return np.maximum(np.log2(np.array(seg_len[1:])/3.0), 0) * (seg_median_diff + seg_std_diff)
 
 
 def min_cost_maximum_match(g):
