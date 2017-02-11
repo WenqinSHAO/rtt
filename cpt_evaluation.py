@@ -8,10 +8,12 @@ import logging
 import ConfigParser
 import traceback
 import multiprocessing
+import argparse
 
 METHOD = ['cpt_normal', 'cpt_poisson', 'cpt_np']
-PENALTY = ["SIC", "BIC", "MBIC", "AIC", "Hannan-Quinn"]
+PENALTY = ["BIC", "MBIC", "Hannan-Quinn"]
 WINDOW = 2  # perform evaluation with window size equaling 2
+MINSEGLEN = 3
 
 
 def worker(f):
@@ -19,13 +21,15 @@ def worker(f):
     r = []
     logging.info("handling %s" % f)
     trace = pd.read_csv(f, sep=';')
+    if type(trace['rtt'][0]) is str:
+        trace = pd.read_csv(f, sep=';', decimal=',')
     fact = trace['cp']
     fact = [i for i, v in enumerate(fact) if v == 1]  # fact in format of data index
     logging.debug("%s : change counts %d" % (f_base, len(fact)))
     for m, p in [(x, y) for x in METHOD for y in PENALTY]:
-        logging.debug("%s: evaluating %s with %s" % (f_base, m, p))
+        logging.info("%s: evaluating %s with %s" % (f_base, m, p))
         method_caller = getattr(dc, m)
-        detect = method_caller(trace['rtt'], penalty=p)
+        detect = method_caller(trace['rtt'], p, MINSEGLEN)
         b = bch.evaluation_window_weighted(trace['rtt'], fact, detect, WINDOW)
         r.append((os.path.basename(f), len(trace), len(fact),
                   b['tp'], b['fp'], b['fn'],
@@ -45,7 +49,7 @@ def worker_wrapper(args):
 
 def main():
     # logging setting
-    logging.basicConfig(filename='eval_art.log', level=logging.INFO,
+    logging.basicConfig(filename='cpt_evaluation.log', level=logging.INFO,
                         format='%(asctime)s - %(levelname)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S %z')
 
@@ -67,29 +71,34 @@ def main():
         logging.critical("data folder %s does not exisit." % data_dir)
         return
 
-    # load where artificial traces are stored
-    try:
-        art_dir = config.get("dir", "artificial_trace")
-    except (ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-        logging.critical("config for artificial trace storage is not right.")
-        return
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--directory",
+                        help="benchmark changepoint methods using the traces from the specified directory.",
+                        action="store")
+    parser.add_argument("-f", "--filename",
+                        help="file name for output.",
+                        action="store")
+    args = parser.parse_args()
 
-    # check if the folder is there
-    if not os.path.exists(art_dir):
-        logging.critical("folder %s does not exisit." % data_dir)
+    if not args.directory or not args.filename:
+        print args.help
         return
+    else:
+        trace_dir = args.directory
+        outfile = args.filename
+
+    if not os.path.exists(trace_dir):
+        print "%s doesn't existe." % trace_dir
 
     files = []
-    for f in os.listdir(art_dir):
+    for f in os.listdir(trace_dir):
         if f.endswith('.csv') and not f.startswith('~'):
-            files.append(os.path.join(art_dir,f))
+            files.append(os.path.join(trace_dir,f))
 
-    pool = multiprocessing.Pool(processes=2)
+    pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
     res = pool.map(worker_wrapper, files)
 
-    #res = [worker(i) for i in files]
-
-    with open(os.path.join(data_dir, 'eval_art.csv'), 'w') as fp:
+    with open(os.path.join(data_dir, outfile), 'w') as fp:
         fp.write(';'.join(
             ['file', 'len', 'changes', 'tp', 'fp', 'fn', 'precision', 'recall', 'score', 'dis', 'method']) + '\n')
         for ck in res:
