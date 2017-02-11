@@ -6,6 +6,7 @@ import sys
 import munkres
 import numpy as np
 
+
 def evaluation(fact, detection):
     """classify the detections into true positive, true negative, false positive and false negative
 
@@ -57,8 +58,9 @@ def evaluation_window(fact, detection, window=0):
         dict: {'tp':int, 'fp':int, 'fn':int, 'precision':float, 'recall':float, 'dis':float}
 
     """
-    cost_matrix = to_matrix(fact, detection, window)  # construct the cost matrix of bipartite graph
+    cost_matrix = make_cost_matrix(fact, detection, window)  # construct the cost matrix of bipartite graph
     match = munkres.Munkres().compute(cost_matrix)  # calculate the matching
+    match = [(i, j) for i, j in match if cost_matrix[i][j] <= window]  # remove dummy edges
 
     tp = len(match)
     fp = len(detection) - tp
@@ -89,6 +91,7 @@ def evaluation_window_weighted(trace, fact, detection, window = 0):
     """
     cost_matrix = make_cost_matrix(fact, detection, window)  # construct the cost matrix of bipartite graph
     match = munkres.Munkres().compute(cost_matrix)  # calculate the matching
+    match = [(i, j) for i, j in match if cost_matrix[i][j] <= window]  # remove dummy edges
 
     weight = weighting(trace, fact)
 
@@ -105,7 +108,7 @@ def evaluation_window_weighted(trace, fact, detection, window = 0):
 def weighting(trace, fact):
     """ weight fact/events
 
-    weight for each fact w = MAX(log10(seg_len/3), 0) * median_diff * sqrt(std_diff)
+    weight for each fact w = MAX(log10(seg_len/3), 0) * (median_diff + sqrt(std_diff))
 
     Args:
         trace (list of numeric): the initial time series
@@ -121,7 +124,7 @@ def weighting(trace, fact):
     seg_median_diff = np.abs(np.array(seg_median[1:])-np.array(seg_median[:-1]))
     seg_std = [np.std(trace[i[0]:i[1]]) for i in seg]
     seg_std_diff = np.abs(np.array(seg_std[1:])-np.array(seg_std[:-1]))
-    return np.maximum(np.log2(np.array(seg_len[1:])/3), 0) * seg_median_diff * np.sqrt(seg_std_diff)
+    return np.maximum(np.log2(np.array(seg_len[1:])/3), 0) * (seg_median_diff + np.sqrt(seg_std_diff))
 
 
 def min_cost_maximum_match(g):
@@ -142,7 +145,8 @@ def min_cost_maximum_match(g):
             edges (list of int): the indexes of already visited/included edges
             v_nodes (set of int): the v nodes involved by visited/included edges
             w_nodes (set of int): the w nodes involved by visited/included edges
-        nodes is a set of vertices in added edges"""
+        nodes is a set of vertices in added edges
+        """
         idx = edges[-1]+1 if edges else 0  # starting from the next edge of last visited/included one
         complete = True  # complete condition is no edge can be further added
         for i, e in enumerate(g[idx:]):
