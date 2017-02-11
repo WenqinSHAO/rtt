@@ -8,7 +8,7 @@ changepoint = importr('changepoint')
 changepoint_np = importr('changepoint.np')
 
 
-def cpt_normal(x, penalty='MBIC', minseglen=3):
+def cpt_normal(x, penalty="MBIC", minseglen=1):
     """changepoint detection with Normal distribution as test statistic
 
     Args:
@@ -25,7 +25,7 @@ def cpt_normal(x, penalty='MBIC', minseglen=3):
                                                                      penalty=penalty, minseglen=minseglen))]
 
 
-def cpt_np(x, penalty='MBIC', minseglen=3):
+def cpt_np(x, penalty="MBIC", minseglen=1):
     """changepoint detection with non-parametric method, empirical distribution is the only choice now
 
         Args:
@@ -40,7 +40,7 @@ def cpt_np(x, penalty='MBIC', minseglen=3):
     return [int(i) for i in changepoint.cpts(changepoint_np.cpt_np(FloatVector(x), penalty=penalty, minseglen=minseglen))]
 
 
-def cpt_poisson(x, penalty='MBIC', minseglen=3):
+def cpt_poisson(x, penalty="MBIC", minseglen=1):
     """changepoint detection with Poisson distribution as test statistic
 
     Baseline equaling the smallest non-negative value is remove;
