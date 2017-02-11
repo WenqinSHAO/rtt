@@ -6,4 +6,5 @@ msmv6 = 2010, 6010
 
 [dir]
 data = data/
-path_analysis = data/path_analysis
+path_analysis = data/path_analysis/
+artificial_trace = data/artificial_trace/
