@@ -1,5 +1,5 @@
 """
-evaluate the changedetection method on artifical dataset
+evaluate the changedetection method on a given dataset
 """
 import pandas as pd
 import os
@@ -33,7 +33,7 @@ def worker(f):
         b = bch.evaluation_window_weighted(trace['rtt'], fact, detect, WINDOW)
         r.append((os.path.basename(f), len(trace), len(fact),
                   b['tp'], b['fp'], b['fn'],
-                  b['precision'], b['recall'], b['score'], b['dis'], m+'&'+p))
+                  b['precision'], b['recall'], b['score'], b['dis'], m, p))
         logging.debug('%r' % b)
     return r
 
@@ -100,7 +100,7 @@ def main():
 
     with open(os.path.join(data_dir, outfile), 'w') as fp:
         fp.write(';'.join(
-            ['file', 'len', 'changes', 'tp', 'fp', 'fn', 'precision', 'recall', 'score', 'dis', 'method']) + '\n')
+            ['file', 'len', 'changes', 'tp', 'fp', 'fn', 'precision', 'recall', 'score', 'dis', 'method', 'penalty']) + '\n')
         for ck in res:
             for line in ck:
                 fp.write(";".join([str(i) for i in line]) + '\n')
