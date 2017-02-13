@@ -15,7 +15,7 @@ from rpy2.rinterface import RRuntimeError
 
 METHOD = ['cpt_normal', 'cpt_poisson', 'cpt_np']
 PENALTY = ["MBIC"]
-MINSEGLEN = 2
+MINSEGLEN = 3
 
 
 def rtt(fn, data_dir, rtt_alyz_dir):
