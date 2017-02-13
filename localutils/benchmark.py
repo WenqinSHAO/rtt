@@ -36,7 +36,7 @@ def evaluation(fact, detection):
     return dict(tp=tp, fp=fp, fn=fn, tn=tn, precision=float(tp)/(tp+fp), recall=float(tp)/(tp+fn))
 
 
-def evaluation_window(fact, detection, window=0):
+def evaluation_window(fact, detection, window=0, return_match=False):
     """classify the detections with window option
 
     We construct a bipartite graph G = (V + W, E), where V is fact and W is detection.
@@ -53,25 +53,44 @@ def evaluation_window(fact, detection, window=0):
         fact (list of int): the index or timestamp of facts/events to be detected
         detection (list of int): index or timestamp of detected events
         window (int): maximum distance for the correlation between fact and detection
+        return_match (bool): returns the matching tuple idx [(fact_idx, detection_idx),...] if set true
 
     Returns:
-        dict: {'tp':int, 'fp':int, 'fn':int, 'precision':float, 'recall':float, 'dis':float}
+        dict: {'tp':int, 'fp':int, 'fn':int, 'precision':float, 'recall':float, 'dis':float, 'match': list of tuple}
 
     """
+    if len(fact) == 0:
+        summary = dict(tp=None, fp=len(detection), fn=None,
+                       precision=None, recall=None,
+                       dis=None, match=[])
+        return summary
+    elif len(detection) == 0:
+        summary = dict(tp=0, fp=0, fn=len(fact),
+                       precision=None, recall=0,
+                       dis=None, match=[])
+        return summary
+
     cost_matrix = make_cost_matrix(fact, detection, window)  # construct the cost matrix of bipartite graph
     match = munkres.Munkres().compute(cost_matrix)  # calculate the matching
     match = [(i, j) for i, j in match if cost_matrix[i][j] <= window]  # remove dummy edges
+    # i and j here are the indices of fact and dection, i.e. ist value in fact and jst value in detection matches
 
     tp = len(match)
     fp = len(detection) - tp
     fn = len(fact) - tp
 
-    return dict(tp=tp, fp=fp, fn=fn,
-                precision=float(tp) / (tp + fp), recall=float(tp) / (tp + fn),
-                dis=sum([cost_matrix[i][j]for i, j in match])/float(tp))
+    summary = dict(tp=tp, fp=fp, fn=fn,
+                   precision=float(tp) / (tp + fp) if len(detection) > 0 else None,
+                   recall=float(tp) / (tp + fn) if len(fact) > 0 else None,
+                   dis=sum([cost_matrix[i][j] for i, j in match]) / float(tp) if tp > 0 else None)
+
+    if return_match:
+        summary['match'] = match
+
+    return summary
 
 
-def evaluation_window_weighted(trace, fact, detection, window = 0):
+def evaluation_window_weighted(trace, fact, detection, window=0, return_match=False):
     """ score the event according to its importance
 
     Each event to detect in fact is associated with a weight/score.
@@ -84,11 +103,23 @@ def evaluation_window_weighted(trace, fact, detection, window = 0):
         fact (list of int): the index or timestamp of facts/events to be detected
         detection (list of int): index or timestamp of detected events
         window (int): maximum distance for the correlation between fact and detection
+        return_match (bool): returns the matching tuple idx [(fact_idx, detection_idx),...] if set true
 
     Returns:
-        dict: {'tp':int, 'fp':int, 'fn':int, 'precision':float, 'recall':float, 'dis':float, 'score':float}
+        dict: {'tp':int, 'fp':int, 'fn':int, 'precision':float, 'recall':float, 'dis':float, 'score':float, 'match':list of tuple}
 
     """
+    if len(fact) == 0:
+        summary = dict(tp=None, fp=len(detection), fn=None,
+                       precision=None, recall=None,
+                       dis=None, score=None, match=[])
+        return summary
+    elif len(detection) == 0:
+        summary = dict(tp=0, fp=0, fn=len(fact),
+                       precision=None, recall=0,
+                       dis=None, score=None, match=[])
+        return summary
+
     cost_matrix = make_cost_matrix(fact, detection, window)  # construct the cost matrix of bipartite graph
     match = munkres.Munkres().compute(cost_matrix)  # calculate the matching
     match = [(i, j) for i, j in match if cost_matrix[i][j] <= window]  # remove dummy edges
@@ -99,10 +130,37 @@ def evaluation_window_weighted(trace, fact, detection, window = 0):
     fp = len(detection) - tp
     fn = len(fact) - tp
 
-    return dict(tp=tp, fp=fp, fn=fn,
-                precision=float(tp) / (tp + fp), recall=float(tp) / (tp + fn),
-                dis=sum([cost_matrix[i][j] for i, j in match]) / float(tp),
-                score=sum([weight[i] for i, _ in match]) / float(sum(weight)))
+    summary = dict(tp=tp, fp=fp, fn=fn,
+                   precision=float(tp) / (tp + fp) if len(detection) > 0 else None,
+                   recall=float(tp) / (tp + fn) if len(fact) > 0 else None,
+                   dis=sum([cost_matrix[i][j] for i, j in match]) / float(tp) if tp > 0 else None,
+                   score=sum([weight[i] for i, _ in match]) / float(sum(weight)) if sum(weight) > 0 else None)
+
+    if return_match:
+        summary['match'] = match
+
+    return summary
+
+
+def character(trace, fact):
+    """ calculate the character of changepoints
+
+    for each index in fact as a changepoint, calculate the median difference and std difference
+
+    Args:
+        trace (list of numeric): the initial time series
+        fact (list of int): index of trace for events to be detected
+
+    Return:
+        list of tuple [(delta median, delta std ),...]
+    """
+    fact = [0] + fact + [len(trace)]
+    seg = [(fact[i], fact[i + 1]) for i in range(len(fact) - 1)]
+    seg_median = [np.median(trace[i[0]:i[1]]) for i in seg]
+    seg_median_diff = np.abs(np.array(seg_median[1:]) - np.array(seg_median[:-1]))
+    seg_std = [np.std(trace[i[0]:i[1]]) for i in seg]
+    seg_std_diff = np.abs(np.array(seg_std[1:]) - np.array(seg_std[:-1]))
+    return zip(seg_median_diff, seg_std_diff)
 
 
 def weighting(trace, fact):
