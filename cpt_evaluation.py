@@ -10,8 +10,8 @@ import traceback
 import multiprocessing
 import argparse
 
-METHOD = ['cpt_normal', 'cpt_poisson', 'cpt_np']
-PENALTY = ["BIC", "MBIC", "Hannan-Quinn"]
+METHOD = ['cpt_normal', 'cpt_poisson', 'cpt_poisson_naive', 'cpt_np']
+PENALTY = ["AIC", "BIC", "MBIC", "Hannan-Quinn"]
 WINDOW = 2  # perform evaluation with window size equaling 2
 MINSEGLEN = 3
 
