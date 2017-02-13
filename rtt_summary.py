@@ -32,40 +32,47 @@ def rtt(f):
     """
     summery = []
     t1 = time.time()
-    with open(f, 'r') as fp:
-        mes = json.load(fp)
-        for pb, rec in mes.items():
-            if 'min_rtt' in rec:
-                rtts = rec.get('min_rtt', None)
-                raw_len = len(rtts) # can be 0
-                pos_rtt = [i for i in rtts if (0 < i < TIMEOUT)]
-                if pos_rtt:
-                    reached_len = len(pos_rtt) # if empty array is given, returns nan of type numpy.float64
-                    mean_ = np.mean(pos_rtt)
-                    mid = np.median(pos_rtt)
-                    min_ = np.min(pos_rtt)
-                    max_ = np.max(pos_rtt)
-                    std_ = np.std(pos_rtt)
-                else:
-                    raw_len = reached_len = mean_ = mid = min_ = max_ = std_ = None
-            elif 'path' in rec:
-                paths = rec.get('path', None)
-                raw_len = len(paths)
-                reached_path = [i for i in paths if (i[-1][1] in DST)]
-                reached_len = len(reached_path)
-                rtts_last = [i[-1][2] for i in reached_path]
-                if rtts_last:
-                    mean_ = np.mean(rtts_last)
-                    mid = np.median(rtts_last)
-                    min_ = np.min(rtts_last)
-                    max_ = np.max(rtts_last)
-                    std_ = np.std(rtts_last)
-                else:
-                    raw_len = reached_len = mean_ = mid = min_ = max_ = std_ = None
+
+    try:
+        with open(f, 'r') as fp:
+            mes = json.load(fp)
+    except IOError as e:
+        logging.error(e)
+        return []
+
+    for pb, rec in mes.items():
+        if 'min_rtt' in rec:
+            rtts = rec.get('min_rtt', None)
+            raw_len = len(rtts) # can be 0
+            pos_rtt = [i for i in rtts if (0 < i < TIMEOUT)]
+            if pos_rtt:
+                reached_len = len(pos_rtt) # if empty array is given, returns nan of type numpy.float64
+                mean_ = np.mean(pos_rtt)
+                mid = np.median(pos_rtt)
+                min_ = np.min(pos_rtt)
+                max_ = np.max(pos_rtt)
+                std_ = np.std(pos_rtt)
             else:
-                logging.warning("Probe %s with empty measurement result in %s" % (pb, f))
                 raw_len = reached_len = mean_ = mid = min_ = max_ = std_ = None
-            summery.append((pb, raw_len, reached_len, mean_, mid, min_, max_, std_))
+        elif 'path' in rec:
+            paths = rec.get('path', None)
+            raw_len = len(paths)
+            reached_path = [i for i in paths if (i[-1][1] in DST)]
+            reached_len = len(reached_path)
+            rtts_last = [i[-1][2] for i in reached_path]
+            if rtts_last:
+                mean_ = np.mean(rtts_last)
+                mid = np.median(rtts_last)
+                min_ = np.min(rtts_last)
+                max_ = np.max(rtts_last)
+                std_ = np.std(rtts_last)
+            else:
+                raw_len = reached_len = mean_ = mid = min_ = max_ = std_ = None
+        else:
+            logging.warning("Probe %s with empty measurement result in %s" % (pb, f))
+            raw_len = reached_len = mean_ = mid = min_ = max_ = std_ = None
+        summery.append((pb, raw_len, reached_len, mean_, mid, min_, max_, std_))
+
     t2 = time.time()
     logging.info("%s handled in %d sec." % (f, (t2-t1)))
     return summery
