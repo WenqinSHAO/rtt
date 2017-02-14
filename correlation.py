@@ -51,7 +51,7 @@ def worker(rtt_ch_fn, path_ch_fn):
         path_tstp = path_ch_rec.get('epoch')
         # try all combination of rtt change detection and path change detection
         for rtt_m, path_m in [(x, y) for x in rtt_ch_m for y in PATH_CH_M]:
-            # index if change in trace, tst[
+            # index if change in trace, tstp
             rtt_ch_index = [i for i, v in enumerate(rtt_ch_rec.get(rtt_m)) if v == 1]
             path_ch_index = [i for i, v in enumerate(path_ch_rec.get(path_m)) if v == 1]
             # the tstp value given the indexes
@@ -60,7 +60,7 @@ def worker(rtt_ch_fn, path_ch_fn):
             # the median diff and std diff of each rtt change
             rtt_ch_character = bch.character(rtt_trace, rtt_ch_index)
             # the matching between rtt change and path timestamps
-            cr = bch.evaluation_window(rtt_ch_tstp, path_ch_tstp, WINDOW, return_match=True)
+            cr = bch.evaluation_window_adp(rtt_ch_tstp, path_ch_tstp, WINDOW, return_match=True)
             # the index of rtt_ch_index/path_ch_index in matching
             rtt_to_path = {i[0]: i[1] for i in cr.get('match')}
             path_to_rtt = {i[1]: i[0] for i in cr.get('match')}

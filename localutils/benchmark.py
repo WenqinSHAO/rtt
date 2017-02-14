@@ -5,6 +5,7 @@ import collections
 import sys
 import munkres
 import numpy as np
+import logging
 
 
 def evaluation(fact, detection):
@@ -71,9 +72,17 @@ def evaluation_window(fact, detection, window=0, return_match=False):
         return summary
 
     cost_matrix = make_cost_matrix(fact, detection, window)  # construct the cost matrix of bipartite graph
+
+    # handle the case there is actually no edges between fact and detection
+    if all([cost_matrix[i][j] == sys.maxint for i in range(len(fact)) for j in range(len(detection))]):
+        summary = dict(tp=0, fp=len(detection), fn=len(fact),
+                       precision=0, recall=0,
+                       dis=None, match=[])
+        return summary
+
     match = munkres.Munkres().compute(cost_matrix)  # calculate the matching
     match = [(i, j) for i, j in match if cost_matrix[i][j] <= window]  # remove dummy edges
-    # i and j here are the indices of fact and dection, i.e. ist value in fact and jst value in detection matches
+    # i and j here are the indices of fact and detection, i.e. ist value in fact and jst value in detection matches
 
     tp = len(match)
     fp = len(detection) - tp
@@ -88,6 +97,94 @@ def evaluation_window(fact, detection, window=0, return_match=False):
         summary['match'] = match
 
     return summary
+
+
+def evaluation_window_adp(fact, detection, window=0, return_match=False):
+    # if the input fact is very long, segment it to accelerate the calculation
+    if len(fact) == 0 or len(detection) == 0:
+        return evaluation_window(fact, detection, window, return_match)
+
+    cost_matrix = make_cost_matrix(fact, detection, window)
+    # handle the case there is actually no edges between fact and detection
+    if all([cost_matrix[i][j] == sys.maxint for i in range(len(fact)) for j in range(len(detection))]):
+        summary = dict(tp=0, fp=len(detection), fn=len(fact),
+                       precision=0, recall=0,
+                       dis=None, match=[])
+        return summary
+
+    cut = cut_matrix(cost_matrix, sys.maxint)
+    match_cut = [evaluation_window(fact[i[0][0]:i[0][1]], detection[i[1][0]:i[1][1]], window, True) for i in cut]
+
+    tp = sum([i['tp'] for i in match_cut])
+    fp = len(detection) - tp
+    fn = len(fact) - tp
+
+    match = []
+    for i, res in enumerate(match_cut):
+        match.extend([(f+cut[i][0][0], d+cut[i][1][0]) for f, d in res['match']])
+
+    summary = dict(tp=tp, fp=fp, fn=fn,
+                   precision=float(tp) / (tp + fp) if len(detection) > 0 else None,
+                   recall=float(tp) / (tp + fn) if len(fact) > 0 else None,
+                   dis=sum([abs(fact[i]-detection[j]) for i, j in match]) / float(tp) if tp > 0 else None)
+
+    if return_match:
+        summary['match'] = match
+
+    return summary
+
+
+def cut_matrix(mat, no_edge=0):
+
+    def cutter(mat, righter, downer):
+        righter_set = set()
+        res = []
+        while righter[1] <= len(mat[0]):
+            righter_set.add(righter)
+            if righter[0] == len(mat) or (righter[1]+1 < len(mat[0]) and mat[righter[0]][righter[1]+1] == no_edge):
+                righter = (righter[0], righter[1]+1)
+            else:
+                righter = (righter[0]+1, righter[1])
+
+        while downer[0] <= len(mat):
+            if (downer[0]+1, downer[1]-1) in righter_set:
+                res.append(downer)
+                if len(res) == 2:
+                    break
+
+            if downer[1] == len(mat[0]) or (downer[0] + 1 < len(mat) and mat[downer[0]+1][downer[1]] == no_edge):
+                downer = (downer[0]+1, downer[1])
+            else:
+                downer = (downer[0], downer[1]+1)
+        return res[-1][0]+1, res[-1][1]
+
+    line_start = 0
+    column_start = 0
+    res = []
+    while line_start < len(mat) and column_start < len(mat[0]):
+        righter = None
+        downer = None
+        for i in range(line_start, len(mat)):
+            row = mat[i]
+            if any([v != no_edge for v in row]):
+                # upper of the most left edge in first non-empty line
+                downer = (i-1, [j for j, v in enumerate(row) if v != no_edge][0])
+                break
+
+        for i in range(column_start, len(mat[0])):
+            column = [row[i] for row in mat]
+            if any([v != no_edge for v in column]):
+                # the upper tp the first edge in the first non-empty column
+                righter = ([j for j, v in enumerate(column) if v != no_edge][0], i-1)
+                break
+
+        if righter is None or downer is None:
+            break
+        line_start, column_start = cutter(mat, righter, downer)
+        # ((row index range), (column index range))
+        res.append(((min(righter[0], downer[0]+1), line_start), (min(righter[1]+1, downer[1]), column_start)))
+
+    return res
 
 
 def evaluation_window_weighted(trace, fact, detection, window=0, return_match=False):
