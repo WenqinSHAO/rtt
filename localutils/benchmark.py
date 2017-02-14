@@ -100,6 +100,7 @@ def evaluation_window(fact, detection, window=0, return_match=False):
 
 
 def evaluation_window_adp(fact, detection, window=0, return_match=False):
+    #TODO: add documentation
     # if the input fact is very long, segment it to accelerate the calculation
     if len(fact) == 0 or len(detection) == 0:
         return evaluation_window(fact, detection, window, return_match)
@@ -135,7 +136,7 @@ def evaluation_window_adp(fact, detection, window=0, return_match=False):
 
 
 def cut_matrix(mat, no_edge=0):
-
+    # TODO: add documentation
     def cutter(mat, righter, downer):
         righter_set = set()
         res = []

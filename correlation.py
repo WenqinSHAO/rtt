@@ -96,7 +96,7 @@ def worker(rtt_ch_fn, path_ch_fn):
 
 def worker_wrapper(args):
     try:
-        worker(*args)
+        return worker(*args)
     except Exception:
         logging.critical("Exception in worker.")
         traceback.print_exc()
@@ -167,12 +167,21 @@ def main():
         # chunks to be handled
         rtt_files = [os.path.join(rtt_alyz_dir, "%d_%d.json" % (i, ping_msm)) for i in xrange(chunk_count)]
         path_files = [os.path.join(path_alyz_dir, "%d_%d.json" % (i, trace_msm)) for i in xrange(chunk_count)]
-        rtt_change_res, path_change_res, overview = pool.map(worker_wrapper,
-                                                             itertools.izip(rtt_files, path_files))
+        res = pool.map(worker_wrapper, itertools.izip(rtt_files, path_files))
+
         # save result to csv in data dir
+        rtt_change_res = []
+        path_change_res = []
+        overview = []
+
+        for r, p, o in res:
+            rtt_change_res.append(r)
+            path_change_res.append(p)
+            overview.append(o)
+
         with open(os.path.join(data_dir, 'cor_overview_%s.csv' % tid), 'w') as fp:
             fp.write(';'.join(
-                ['probe', 'cpt_method', 'cpt_count', 'pch_method', 'pch_count',
+                ['probe', 'trace_len', 'cpt_method', 'cpt_count', 'pch_method', 'pch_count',
                  'tp', 'fp', 'fn', 'precision', 'recall', 'dis']) + '\n')
             for ck in overview:
                 for line in ck:
