@@ -20,18 +20,29 @@ WINDOW = 1800  # interval of traceroute measurement
 
 
 def worker(rtt_ch_fn, path_ch_fn):
+    """ correlates the RTT changes and path changes in the given file
+
+    Args:
+        rtt_ch_fn (string): path to the rtt analysis output
+        path_ch_fn (string): path to the path analysis output
+
+    Returns:
+        rtt_change_res (list of tuple): from each rtt change point of view, what is it's character, is it matched to a path change
+        path_change_res (list of tuple): from each path change point of view, is it matched to an RTT change, what kind of
+        overview (list of tuple): from each probe, what's the overall correlation between RTT change and path change
+    """
     rtt_change_res = []
     path_change_res = []
     overview = []
 
-    try:
+    try:  # load rtt analysis
         with open(rtt_ch_fn, 'r') as fp:
             rtt_ch = json.load(fp)
     except IOError as e:
         logging.error(e)
         return [], [], []
 
-    try:
+    try:  # load path analysis
         with open(path_ch_fn, 'r') as fp:
             path_ch = json.load(fp)
     except IOError as e:
@@ -41,6 +52,7 @@ def worker(rtt_ch_fn, path_ch_fn):
     pbs = set(rtt_ch.keys()) & set(path_ch.keys())
     logging.info("%d probes in common in %s (%d) and %s (%d)" % (len(pbs), rtt_ch_fn, len(rtt_ch),
                                                                  path_ch_fn, len(path_ch)))
+    # all possible rtt change detection method, key in the per pb rec in json
     rtt_ch_m = [m+'&'+p for m in METHOD for p in PENALTY]
 
     for pb in pbs:
