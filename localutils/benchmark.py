@@ -5,7 +5,6 @@ import collections
 import sys
 import munkres
 import numpy as np
-import logging
 
 
 def evaluation(fact, detection):
