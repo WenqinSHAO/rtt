@@ -100,8 +100,32 @@ def evaluation_window(fact, detection, window=0, return_match=False):
 
 
 def evaluation_window_adp(fact, detection, window=0, return_match=False):
-    #TODO: add documentation
-    # if the input fact is very long, segment it to accelerate the calculation
+    """ a variation of evaluation_window() which is adapted to parse cost matrix generated from fact and detection.
+
+    If fact or detection contain many elements, say more than one hundred. It will take a significant amount of time,
+    even with hungarian algo, to compute the min cost maximum matching.
+    In our specific case, since the cost matrix is very specific, and can only have values at limited places.
+    It is thus possible to cut the initial cost matrix into several non-connecting ones. For example:
+    cost_matrix = [[62, 0,  0,  0, 0,  0, 0],
+                   [11, 11, 82, 0, 0,  0, 0],
+                   [0,  0, 81, 12, 0,  0, 0],
+                   [0,  0,  0,  0, 12, 0, 0],
+                   [0,  0,  0,  0, 0,  0, 0],
+                   [0,  0,  0,  0, 0,  0, 12],
+                   [0,  0,  0,  0, 0,  0, 12]]
+    The given cost matrix is composed of three separate parts:
+    cost_matrix[0:4][0:5], cost_matrix[3:4][4:5] and cost_matrix[5:end][6:end].
+    Calculating the matching separately for the two sub-matrices will be faster.
+
+    Args:
+        fact (list of int): the index or timestamp of facts/events to be detected
+        detection (list of int): index or timestamp of detected events
+        window (int): maximum distance for the correlation between fact and detection
+        return_match (bool): returns the matching tuple idx [(fact_idx, detection_idx),...] if set true
+
+    Returns:
+        dict: {'tp':int, 'fp':int, 'fn':int, 'precision':float, 'recall':float, 'dis':float, 'match': list of tuple}
+    """
     if len(fact) == 0 or len(detection) == 0:
         return evaluation_window(fact, detection, window, return_match)
 
@@ -113,16 +137,16 @@ def evaluation_window_adp(fact, detection, window=0, return_match=False):
                        dis=None, match=[])
         return summary
 
-    cut = cut_matrix(cost_matrix, sys.maxint)
+    cut = cut_matrix(cost_matrix, sys.maxint)  # [((fact/line range), (detect/column range)),...]
     match_cut = [evaluation_window(fact[i[0][0]:i[0][1]], detection[i[1][0]:i[1][1]], window, True) for i in cut]
 
-    tp = sum([i['tp'] for i in match_cut])
+    tp = sum([i['tp'] for i in match_cut if i['tp']])  # in general is not possible to have i['tp'] is None
     fp = len(detection) - tp
     fn = len(fact) - tp
 
     match = []
     for i, res in enumerate(match_cut):
-        match.extend([(f+cut[i][0][0], d+cut[i][1][0]) for f, d in res['match']])
+        match.extend([(f+cut[i][0][0], d+cut[i][1][0]) for f, d in res['match']])  # adjust index according to starting
 
     summary = dict(tp=tp, fp=fp, fn=fn,
                    precision=float(tp) / (tp + fp) if len(detection) > 0 else None,
@@ -136,52 +160,108 @@ def evaluation_window_adp(fact, detection, window=0, return_match=False):
 
 
 def cut_matrix(mat, no_edge=0):
-    # TODO: add documentation
+    """ given a cost matrix, cut it into non-connecting parts
+
+    For example:
+    cost_matrix = [[62, 0,  0,  0, 0,  0, 0],
+                   [11, 11, 82, 0, 0,  0, 0],
+                   [0,  0, 81, 12, 0,  0, 0],
+                   [0,  0,  0,  0, 12, 0, 0],
+                   [0,  0,  0,  0, 0,  0, 0],
+                   [0,  0,  0,  0, 0,  0, 12],
+                   [0,  0,  0,  0, 0,  0, 12]]
+    expect return: [((0, 4), (0, 5)), ((3, 4), (4, 5)), ((5,7),(6,7))]
+    Input like this is as well acceptable, though such case is not possible in the usage of this project.
+    cost_matrix = [[62, 0,  0,  0, 0,  0, 0],
+                   [11, 11, 82, 0, 0,  0, 0],
+                   [0,  0, 81, 12, 0,  0, 0],
+                   [0,  0, 12,  0, 0,  0, 0],
+                   [0,  0,  0,  0, 0,  0, 12],
+                   [0,  0,  0,  0, 0, 11, 12],
+                   [0,  0,  0,  0, 0,  0, 12]]
+    the lower-righter sub-matrix doesn't have edge as the top left corner.
+
+    Args:
+        mat (list of list of equal length): the cost matrix
+        no_edge (int): the value in matrix meaning the the two nodes are not connected, thus no_edge
+
+    Return:
+        list of tuple: [((row from, to), (column from, to)), (another sub-matrix)...]
+    """
     def cutter(mat, righter, downer):
-        righter_set = set()
-        res = []
+        """ given the matrix and the two outer surrounding coordinates of the top left corner of a submatrix
+
+        righter and downer traces the outer contour of a submatrix and verifies where it ends.
+        righter goes right (increment in column index) when the value to its right is not an edge, else goes downwards.
+        downer goes downside (increment in row index) when the value beneath it is not an edge, else goes right.
+        righter and downer cuts a sub-matrix if they are in a diagonal position, corner touch corner.
+
+        Args:
+            mat (list of list of equal length): the cost matrix
+            righter (tuple of two int): coordinate of righter
+            downer (tuple of two int): coordinate of downer
+
+        Returns:
+            cut (tuple of two int): the row and column index the cuts (outer border) the sub-matrix beginning from the point
+            surrounded by the input righter and downer
+        """
+        righter_copy = righter  # save the initial righter
+        righter_set = set()  # the righter position ever visited
+        cut = (len(mat), len(mat[0]))  # the default return value, if not cut, righter downer matches there, outside matrix
+        # trace the righter first, to the very end
+        # the stop condition is when the column index reaches the column number of the matrix + 1
         while righter[1] <= len(mat[0]):
             righter_set.add(righter)
+            # righter can move right if it is already out side the matrix or next value is not an edge
             if righter[0] == len(mat) or (righter[1]+1 < len(mat[0]) and mat[righter[0]][righter[1]+1] == no_edge):
                 righter = (righter[0], righter[1]+1)
             else:
+                # otherwise move downwards
                 righter = (righter[0]+1, righter[1])
-
+        righter_set.remove(righter_copy)  # remove the initial righter so that it won't match up with first downer
+        # then move the downer, the stop condition its row index is matrix row number + 1
         while downer[0] <= len(mat):
-            if (downer[0]+1, downer[1]-1) in righter_set:
-                res.append(downer)
-                if len(res) == 2:
-                    break
-
+            # in general initial downer always matches with the initial righter, why removing the initial righter
+            if (downer[0]+1, downer[1]-1) in righter_set:  # test diagonal position
+                cut = (downer[0]+1, downer[1])
+                break
+            # can move down if already outside matrix or next value is not an edge
             if downer[1] == len(mat[0]) or (downer[0] + 1 < len(mat) and mat[downer[0]+1][downer[1]] == no_edge):
                 downer = (downer[0]+1, downer[1])
-            else:
+            else:  # other wise move right
                 downer = (downer[0], downer[1]+1)
-        return res[-1][0]+1, res[-1][1]
+        # if not cut righter surely contain (len(mat), len(mat[0]-1))
+        # then downer matches righter at (len(mat)-1, len(mat[0]))
+        # which makes the default cut that is (len(mat), len(mat[0]))
+        return cut
 
+    # the crossing point (inclusive) of line_start and column start is the top left corner of sub-matrix
     line_start = 0
     column_start = 0
-    res = []
+    res = []  # row and column index range for each submatrix
     while line_start < len(mat) and column_start < len(mat[0]):
+
         righter = None
         downer = None
         for i in range(line_start, len(mat)):
+            # the righter is the position left to the top element in the first non-empty column
             row = mat[i]
             if any([v != no_edge for v in row]):
-                # upper of the most left edge in first non-empty line
                 downer = (i-1, [j for j, v in enumerate(row) if v != no_edge][0])
                 break
 
         for i in range(column_start, len(mat[0])):
+            # the downer is the position upper to the first element in the first non-empty row
             column = [row[i] for row in mat]
             if any([v != no_edge for v in column]):
-                # the upper tp the first edge in the first non-empty column
+
                 righter = ([j for j, v in enumerate(column) if v != no_edge][0], i-1)
                 break
-
+        # if can not be found means from line_start, column_start, there is no edge left
         if righter is None or downer is None:
             break
-        line_start, column_start = cutter(mat, righter, downer)
+
+        line_start, column_start = cutter(mat, righter, downer)  # update starting point with the last cut
         # ((row index range), (column index range))
         res.append(((min(righter[0], downer[0]+1), line_start), (min(righter[1]+1, downer[1]), column_start)))
 
