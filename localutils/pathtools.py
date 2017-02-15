@@ -214,9 +214,9 @@ class IpForwardingPattern:
     """IpForwardingPattern describes the forwarding paths for all the paris-id in joining one destination
 
     Attributes:
-        pattern (list of path): index of the list is the paris id; the element is a path composed of hops
+        pattern (list of path): index of the list is the paris id; the element is a path composed of hops;
+        each path is a list of hop; two paths are equal if they contain the same hops following same order
     """
-    # TODO: specify the data type for path; make sure that it can be compared to each other
     def __init__(self, size, paris_id=None, paths=None):
         """Initialize with size that the number of different paris id and optionally with paths taken by paris id
 
