@@ -1,7 +1,7 @@
 """
 This script translates IP path to AS path and detect changes in both paths for each probe
 """
-import localutils.pathtools as pt
+from localutils import pathtools as pt, dbtools as db
 import localutils.misc as ms
 import logging
 import ConfigParser
@@ -66,7 +66,7 @@ def path(fn, pb_meta, data_dir, path_alyz_dir):
                     enhanced_path = pt.bridge(enhanced_path)  # remove holes if possible
                     if is_v4:  # for v4 traceroute, detect IXP
                         enhanced_path = pt.insert_ixp(enhanced_path)
-                    asn_path = [hop.get_asn() for hop in enhanced_path]  # construct asn path
+                    asn_path = [hop.get_asn() for hop in enhanced_path if hop.type != db.AddrType.Others]  # construct asn path
                     asn_path = pt.remove_repeated_asn(asn_path)  # remove continuously repeated asn
                     asn_path_seq.append(asn_path)
                 # detect asn path changes
