@@ -13,7 +13,7 @@ import time
 from localutils import benchmark as bch
 
 
-METHOD = ['cpt_np']
+METHOD = ['cpt_normal']
 PENALTY = ["MBIC"]
 PATH_CH_M = ['as_path_change', 'ifp_simple', 'ifp_bck', 'ifp_split']
 WINDOW = 1800  # interval of traceroute measurement
@@ -191,7 +191,7 @@ def main():
             path_change_res.append(p)
             overview.append(o)
 
-        with open(os.path.join(data_dir, 'cor_overview_%s_np.csv' % tid), 'w') as fp:
+        with open(os.path.join(data_dir, 'cor_overview_%s_normal.csv' % tid), 'w') as fp:
             fp.write(';'.join(
                 ['probe', 'trace_len', 'cpt_method', 'cpt_count', 'pch_method', 'pch_count',
                  'tp', 'fp', 'fn', 'precision', 'recall', 'dis']) + '\n')
@@ -199,14 +199,14 @@ def main():
                 for line in ck:
                     fp.write(";".join([str(i) for i in line]) + '\n')
 
-        with open(os.path.join(data_dir, 'cor_rtt_ch_%s_np.csv' % tid), 'w') as fp:
+        with open(os.path.join(data_dir, 'cor_rtt_ch_%s_normal.csv' % tid), 'w') as fp:
             fp.write(';'.join(['probe', 'cpt_method', 'pch_method', 'i', 'cpt_idx',
                                'delta_median', 'delta_std', 'matched', 'dis']) + '\n')
             for ck in rtt_change_res:
                 for line in ck:
                     fp.write(";".join([str(i) for i in line]) + '\n')
 
-        with open(os.path.join(data_dir, 'cor_path_ch_%s_np.csv' % tid), 'w') as fp:
+        with open(os.path.join(data_dir, 'cor_path_ch_%s_normal.csv' % tid), 'w') as fp:
             fp.write(';'.join(['probe', 'cpt_method', 'pch_method', 'i', 'pch_idx',
                                'matched', 'dis', 'delta_median', 'delta_std']) + '\n')
             for ck in path_change_res:
