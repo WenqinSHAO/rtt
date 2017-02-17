@@ -3,28 +3,28 @@ this script correlates the RTT change and path changes
 """
 import traceback
 import logging
-import localutils.misc as ms
 import ConfigParser
 import os
 import multiprocessing
 import itertools
 import json
 import time
-from localutils import benchmark as bch
+from localutils import benchmark as bch, misc as ms
 
 
-METHOD = ['cpt_normal']
+METHOD = ['cpt_normal', 'cpt_np', 'cpt_poisson']
 PENALTY = ["MBIC"]
 PATH_CH_M = ['as_path_change', 'ifp_simple', 'ifp_bck', 'ifp_split']
 WINDOW = 1800  # interval of traceroute measurement
 
 
-def worker(rtt_ch_fn, path_ch_fn):
+def worker(rtt_ch_fn, path_ch_fn, rtt_ch_m):
     """ correlates the RTT changes and path changes in the given file
 
     Args:
         rtt_ch_fn (string): path to the rtt analysis output
         path_ch_fn (string): path to the path analysis output
+        rtt_ch_m (string): the method used for RTT change detection
 
     Returns:
         rtt_change_res (list of tuple): from each rtt change point of view, what is it's character, is it matched to a path change
@@ -52,8 +52,11 @@ def worker(rtt_ch_fn, path_ch_fn):
     pbs = set(rtt_ch.keys()) & set(path_ch.keys())
     logging.info("%d probes in common in %s (%d) and %s (%d)" % (len(pbs), rtt_ch_fn, len(rtt_ch),
                                                                  path_ch_fn, len(path_ch)))
+
     # all possible rtt change detection method, key in the per pb rec in json
-    rtt_ch_m = [m+'&'+p for m in METHOD for p in PENALTY]
+    # rtt_ch_m = [m+'&'+p for m in METHOD for p in PENALTY]
+    # put all the method in one out file is too large to handle
+    rtt_ch_m = [rtt_ch_m]
 
     for pb in pbs:
         rtt_ch_rec = rtt_ch.get(pb)
@@ -179,39 +182,41 @@ def main():
         # chunks to be handled
         rtt_files = [os.path.join(rtt_alyz_dir, "%d_%d.json" % (i, ping_msm)) for i in xrange(chunk_count)]
         path_files = [os.path.join(path_alyz_dir, "%d_%d.json" % (i, trace_msm)) for i in xrange(chunk_count)]
-        res = pool.map(worker_wrapper, itertools.izip(rtt_files, path_files))
 
-        # save result to csv in data dir
-        rtt_change_res = []
-        path_change_res = []
-        overview = []
+        for rtt_ch_m in [m + '&' + p for m in METHOD for p in PENALTY]:
+            res = pool.map(worker_wrapper, itertools.izip(rtt_files, path_files, itertools.repeat(rtt_ch_m)))
+            # save result to csv in data dir
+            file_suf = rtt_ch_m.split('&')[0]
+            rtt_change_res = []
+            path_change_res = []
+            overview = []
 
-        for r, p, o in res:
-            rtt_change_res.append(r)
-            path_change_res.append(p)
-            overview.append(o)
+            for r, p, o in res:
+                rtt_change_res.append(r)
+                path_change_res.append(p)
+                overview.append(o)
 
-        with open(os.path.join(data_dir, 'cor_overview_%s_normal.csv' % tid), 'w') as fp:
-            fp.write(';'.join(
-                ['probe', 'trace_len', 'cpt_method', 'cpt_count', 'pch_method', 'pch_count',
-                 'tp', 'fp', 'fn', 'precision', 'recall', 'dis']) + '\n')
-            for ck in overview:
-                for line in ck:
-                    fp.write(";".join([str(i) for i in line]) + '\n')
+            with open(os.path.join(data_dir, 'cor_overview_%s_%s.csv' % (tid, file_suf)), 'w') as fp:
+                fp.write(';'.join(
+                    ['probe', 'trace_len', 'cpt_method', 'cpt_count', 'pch_method', 'pch_count',
+                     'tp', 'fp', 'fn', 'precision', 'recall', 'dis']) + '\n')
+                for ck in overview:
+                    for line in ck:
+                        fp.write(";".join([str(i) for i in line]) + '\n')
 
-        with open(os.path.join(data_dir, 'cor_rtt_ch_%s_normal.csv' % tid), 'w') as fp:
-            fp.write(';'.join(['probe', 'cpt_method', 'pch_method', 'i', 'cpt_idx',
-                               'delta_median', 'delta_std', 'matched', 'dis']) + '\n')
-            for ck in rtt_change_res:
-                for line in ck:
-                    fp.write(";".join([str(i) for i in line]) + '\n')
+            with open(os.path.join(data_dir, 'cor_rtt_ch_%s_%s.csv' % (tid, file_suf)), 'w') as fp:
+                fp.write(';'.join(['probe', 'cpt_method', 'pch_method', 'i', 'cpt_idx',
+                                   'delta_median', 'delta_std', 'matched', 'dis']) + '\n')
+                for ck in rtt_change_res:
+                    for line in ck:
+                        fp.write(";".join([str(i) for i in line]) + '\n')
 
-        with open(os.path.join(data_dir, 'cor_path_ch_%s_normal.csv' % tid), 'w') as fp:
-            fp.write(';'.join(['probe', 'cpt_method', 'pch_method', 'i', 'pch_idx',
-                               'matched', 'dis', 'delta_median', 'delta_std']) + '\n')
-            for ck in path_change_res:
-                for line in ck:
-                    fp.write(";".join([str(i) for i in line]) + '\n')
+            with open(os.path.join(data_dir, 'cor_path_ch_%s_%s.csv' % (tid, file_suf)), 'w') as fp:
+                fp.write(';'.join(['probe', 'cpt_method', 'pch_method', 'i', 'pch_idx',
+                                   'matched', 'dis', 'delta_median', 'delta_std']) + '\n')
+                for ck in path_change_res:
+                    for line in ck:
+                        fp.write(";".join([str(i) for i in line]) + '\n')
 
     t2 = time.time()
     logging.info("All chunks calculated in %.2f sec." % (t2 - t1))
