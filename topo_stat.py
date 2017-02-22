@@ -39,7 +39,7 @@ def worker(fn, data_dir, path_alyz_dir):
         ip_paths = traceroute.get(pb).get('path')
         reached_ip = [[hop[1] for hop in path] for path in ip_paths if (path[-1][1] in DST)]
         as_paths = path_alyz.get(pb).get('asn_path')
-        reached_as = [i for i in as_paths if i[-1] in DST]
+        reached_as = [i for i in as_paths if len(i) >= 1 and i[-1] in DST]
 
         unique_as = set([reached_as[i][j] for i in range(len(reached_as)) for j in range(len(reached_as[i])) if
                          type(reached_as[i][j]) is int])
