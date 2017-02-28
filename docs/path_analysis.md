@@ -122,7 +122,7 @@ Each time, the Paris ID used is incremented by 1. When reaches 15, it comes back
 This design has two major consequences in detecting IP-leve path changes:
 
 1. Challenge: two neighbouring traceroute could naturally report two different IP paths due to load-balancing;
-however that doesn't mean that any change in IP forwarding has ever taken place.
+however that doesn't mean that any routing change in IP forwarding has ever taken place.
 2. Benefit: it enlarges the chance of detecting changes in IP forwarding. If traceroute is locked on one single Paris ID,
 it is possible that certain change alters only the path taken by the Paris IDs not measured, resulting false negative.
 
