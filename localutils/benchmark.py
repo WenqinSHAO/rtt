@@ -343,7 +343,7 @@ def character(trace, fact):
 def weighting(trace, fact):
     """ weight fact/events
 
-    weight for each fact w = MAX(log10(seg_len/3), 0) * (median_diff + sqrt(std_diff))
+    weight for each fact w = MAX(log2(seg_len/3), 0) * (median_diff + std_diff)
 
     Args:
         trace (list of numeric): the initial time series
