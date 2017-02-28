@@ -48,6 +48,18 @@ rtt.tracev4 <- data.table(read.csv2("rtt_summary_5010_of_v4.csv", header = T, st
 rtt.pingv6 <- data.table(read.csv2("rtt_summary_2010_of_v6.csv", header = T, stringsAsFactors = F, na.strings = "None"))
 rtt.tracev6 <- data.table(read.csv2("rtt_summary_6010_of_v6.csv", header = T, stringsAsFactors = F, na.strings = "None"))
 
+nrow(rtt.pingv4)
+probe.meta[probe_id %in% one_probe_as, length(unique(asn_v4))]
+probe.meta[probe_id %in% one_probe_as, length(unique(country_code))]
+sum(rtt.pingv4$raw_length, na.rm = T)
+sum(rtt.tracev4$raw_length, na.rm = T)
+
+u_as <- read.table("unique_as_v4.txt")
+u_ixp <- read.table("unique_ixp_v4.txt", sep = '|')
+u_path <- read.table("unique_as_path_v4.txt", sep = '|')
+# topo summary ----
+topo_stat <- data.table(read.table("topo_stat_v4.csv", header = T, stringsAsFactors = F, sep=';'))
+
 # * data length, compare raw and reached ----
 # reached is the case where the rtt is valid, traceroute reaches the last hop
 # * * v4 ping ----
@@ -56,6 +68,12 @@ g <- ggplot(melt(rtt.pingv4, id.vars = 'probe_id',
                  variable.name = 'type', value.name = 'length')) + 
   geom_density(aes(as.integer(length), col=type))
 print(g)
+
+g <- ggplot(rtt.pingv4[valid_length>30000]) + 
+  geom_density(aes(as.integer(median))) +
+  scale_x_continuous(breaks=c(0, 30, 50, 80, 100, 150, 200, 250, 300, 400))
+print(g)
+
 
 rtt.pingv4[valid_length>30000, length(probe_id)]/rtt.pingv4[,length(probe_id)]
 
@@ -185,6 +203,7 @@ case = 10663
 case = 21328
 case = 26106
 case = 15902
+
 case = 12937 # high var cpts
 case = 13691 # high var cpts
 case = 11650 # high var cpts
@@ -194,12 +213,35 @@ case = 12385 # large var large level cpts
 case = 17272 # large var large level cpts
 case = 17082 # large var large level cpts
 case = 21067 # large var large level cpts
-case = 28720 # many as path change
-case = 13389 # many as path change
+
+case = 12833 # AS ch + precison - load balancing among three providers
+case = 22292 # AS ch + precision - precense of 
+case = 6129 # AS ch + precsion - load balancing between IXP
+case = 24244 # AS ch + precsion - most of the time due IXP detection unknown IXP prefixes have to check IP hops
+
+case = 27711 # AS ch - precsion +-
+
+case = 12849 # AS ch + precision + is really frequent and regualr AS path change
+case = 13427 # AS ch + precison + have re-occuring reachability issue
+case = 11665 # AS ch + precison + re-occuring reachability issue
+
+case = 26328
+
+case = 10015 # as path ch 100 200
+case = 11150 # as path ch 100 200
+case = 6038 # as path ch 100 200 
+
+case = 21625
+case = 18359
+case = 23998
 
 probe.meta[probe_id==case]
 rtt.pingv4[probe_id==case]
 rtt.tracev4[probe_id==case]
+topo_stat[probe==case]
+overview_np[probe == case]
+overview_poisson[probe == case]
+overview_normal[probe == case]
 # chunk id of the probe
 chunk.id = dic.v4[probe_id == case, chunk_id]
 
@@ -221,11 +263,29 @@ ts.tracev4 <- data.frame(epoch = trace_json[[as.character(case)]]$epoch,
                         ifp_simple = trace_json[[as.character(case)]]$ifp_simple, 
                         ifp_bck = trace_json[[as.character(case)]]$ifp_bck,
                         ifp_split = trace_json[[as.character(case)]]$ifp_split)
-
-ts.pingv4 = data.table(ts.pingv4)
 ts.tracev4 = data.table(ts.tracev4)
+asn_path = lapply(trace_json[[as.character(case)]]$asn_path, unlist)
+lapply(asn_path, write, sprintf('asn_path_%d.txt', case), append=TRUE, ncolumns=1000)
+#write.table(ts.pingv4, file=sprintf('%d.csv',case), sep=';', row.names = F)
 
-write.table(ts.pingv4, file=sprintf('%d.csv',case), sep=';', row.names = F)
+pdf(sprintf('../data/graph/case_%d.pdf', case), width = 8, height=4)
+g<- ggplot(ts.pingv4[3000:5000], aes(x= anytime(epoch), y=rtt)) + 
+  geom_point() +
+  #geom_line(col='grey') +
+  #geom_point(aes(text=paste("Index:", seq_len(nrow(ts.pingv4[1:100])))), size=.8) +
+  geom_vline(xintercept = as.numeric(anytime(ts.pingv4[cp==1,epoch])), col='red', size=.6, alpha=1)+
+  geom_vline(xintercept = as.numeric(anytime(ts.pingv4[cp_np==1,epoch])), col='green', size=1.5, alpha=.8, linetype=2)+
+  geom_vline(xintercept = as.numeric(anytime(ts.tracev4[as_path_change==1,epoch])), col='orange', size=2.5, alpha=.5) +
+  geom_vline(xintercept = as.numeric(anytime(ts.tracev4[ifp_bck==1,epoch])), col='violet', size=2.5, alpha=.5) +
+  scale_color_manual(name='', values = c(Poisson='red', NP='green', AS='orange')) +
+  scale_x_datetime(date_breaks = "6 hours", date_labels='%Y-%m-%d %Hh') +
+  xlab('Time (UTC)')+
+  ylab('RTT (ms)')+
+  theme(text=element_text(size=16),
+        axis.text.x=element_text(size=12,angle = 15, hjust=0.5, vjust=.5),
+        legend.position='top')
+print(g)
+dev.off()
 
 pdf('../data/graph/lAlV_example.pdf', width = 8, height=4)
 g<- ggplot(ts.pingv4[1:100], aes(x= anytime(epoch), y=rtt)) + 
@@ -292,7 +352,7 @@ nrow(trace)
 length(which(trace[1:2500]$cp==1))
 
 # changedetection eval with artificial/real trace ----
-res_window <- read.table('eval_antoine.csv', sep=';', header = T)
+res_window <- read.table('../data/eval_antoine.csv', sep=';', header = T)
 res_window <- read.table('eval_art.csv', sep=';', header = T)
 res_window <- read.table('../data/cpt_eval_real_complete.csv', sep=';', header = T)
 res_window$fallout <- res_window$fp / (res_window$len - res_window$changes)
@@ -423,72 +483,173 @@ overview_poisson = data.table(read.table("cor_overview_v4_cpt_poisson.csv", sep=
 overview_np = data.table(read.table("cor_overview_v4_cpt_np.csv", sep=';', header = T, stringsAsFactors = F))
 overview_normal = data.table(read.table("cor_overview_v4_cpt_normal.csv", sep=';', header = T, stringsAsFactors = F))
 
-rtt_view = data.table(read.table("cor_rtt_ch_v4.csv", sep=';', header=T, stringsAsFactors = F))
+rtt_view = data.table(read.table("cor_rtt_ch_v4_cpt_poisson.csv", sep=';', header=T, stringsAsFactors = F))
 path_view = data.table(read.table("cor_path_ch_v4.csv", sep=';', header=T, stringsAsFactors = F))
 
+# one probe per as with max traceroute valide length
+rtt.tracev4 <- merge(rtt.tracev4, probe.meta[, probe_id, asn_v4], by='probe_id', all=TRUE)
+one_probe_as <- rtt.tracev4[, .SD[which.max(valid_length)], by=asn_v4][,probe_id]
+one_probe_as <- intersect(one_probe_as, probe.meta[!address_v4=='None', probe_id])
+
+length(one_probe_as)
+
+write.table(rtt.tracev4[, .SD[which.max(valid_length)], by=asn_v4][,.(probe_id, asn_v4)], file = 'one_probe_per_as.csv', sep=';',
+            row.names = F)
 
 # * rtt change NUMBER distribution of three detection method ----
 overview_m = rbind(overview_poisson, overview_np, overview_normal)
-bks = c(10, 100, 200, 500, 1000, 2000, 8000)
-pdf('../data/graph/rtt_ch_count_cdf_cmp.pdf', width = 8, height=4)
-g <- ggplot(overview_m[pch_method=='ifp_bck' & trace_len > 30000]) + stat_ecdf(aes(log_mod(cpt_count), col=cpt_method))+
+bks = c(10, 50, 100, 200, 500, 1000, 2000, 8000)
+pdf('../data/graph/rtt_ch_count_cdf_cmp.pdf', width = 4, height=4)
+g <- ggplot(overview_m[pch_method=='ifp_bck' & trace_len > 30000]) + 
+  #stat_ecdf(aes(log_mod(cpt_count), col=cpt_method))+
+  geom_density(aes(log_mod(cpt_count), col=cpt_method)) +
   scale_x_continuous(breaks=log_mod(bks), labels = bks) +
-  scale_color_discrete(name='cpt method') +
+  coord_cartesian(xlim = log_mod(c(10, 8000))) +
+  scale_color_discrete(name='', breaks=c('cpt_normal&MBIC', 'cpt_np&MBIC', 'cpt_poisson&MBIC'),
+                       labels=c('Normal', 'NP', 'Poisson')) +
   xlab('Number of RTT changes per probe') +
-  ylab('CDF') +
-  theme(text=element_text(size=16), legend.position='top')
+  #ylab('Density estimation') +
+  ylab('CDF')+
+  theme(text=element_text(size=16), legend.position='top',
+        axis.text.x=element_text(size=12, angle = 20, hjust=0.5, vjust=.5))
 print(g)
 dev.off()
 
 # * path change NUMBER distribution ----
-bks = c(10, 100, 200, 500, 1000, 2000, 4000)
-pdf('../data/graph/path_ch_count_cdf_cmp.pdf', width = 8, height=4)
-g <- ggplot(overview_np[! pch_method == 'ifp_simple' & trace_len > 30000]) + 
+bks = c(0, 2, 10, 20, 50, 100, 200, 500, 1000, 4000)
+pdf('../data/graph/path_ch_count_density_cmp.pdf', width = 4, height=4)
+g <- ggplot(overview_np[pch_method %in% c('as_path_change', 'ifp_bck') & probe %in% one_probe_as]) + 
   #stat_ecdf(aes(log_mod(as.numeric(tp)+as.numeric(fp)), col=pch_method)) +
-  #geom_density(aes(log_mod(as.numeric(tp)+as.numeric(fp)), col=pch_method)) +
-  geom_density(aes(as.numeric(tp)+as.numeric(fp), col=pch_method)) +
-  #scale_x_continuous(breaks=log_mod(bks), labels = bks) +
-  coord_cartesian(xlim=c(0, 400)) +
-  scale_color_discrete(name='Patch change method') +
+  geom_density(aes(log_mod(as.numeric(tp)+as.numeric(fp)), col=pch_method)) +
+  scale_x_continuous(breaks=log_mod(bks), labels = bks) +
+  #coord_cartesian(xlim=c(0, 400)) +
+  scale_color_discrete(name='', breaks=c('as_path_change', 'ifp_bck'), labels=c('AS path', 'IFP')) +
   xlab('Number of path changes per probe') +
+  ylab('Density') +
+  theme(text=element_text(size=16), legend.position='top',
+        axis.text.x=element_text(size=12, angle = 25, hjust=0.5, vjust=.5),
+        legend.text=element_text(size=12))
+print(g)
+dev.off()
+
+overview_np[pch_method =='as_path_change' & probe %in% one_probe_as & as.numeric(tp)+as.numeric(fp) > 500, length(probe)]
+quantile(overview_np[pch_method =='ifp_bck' & probe %in% one_probe_as, as.numeric(tp)+as.numeric(fp)])
+
+# * AS path change NUMBER and PRECISION ----
+bks = c(0, 2, 10, 20, 50, 100, 200, 500, 1000, 4000)
+pdf('../data/graph/as_path_ch_precision_np.pdf', width = 4, height=4)
+g <- ggplot(overview_poisson[pch_method == 'as_path_change' & trace_len > 30000 & probe %in% one_probe_as],
+            aes(x=(as.numeric(tp)+as.numeric(fp)), y=as.numeric(precision))) + 
+  geom_point(aes(text=paste("Probe:", probe)), size=1, alpha=.3, col='#e41a1c') +
+  #geom_smooth() +
+  geom_density2d()+
+  scale_x_continuous(trans = log10_trans(), breaks = bks) +
+  #coord_cartesian(xlim=c(0, 200)) +
+  #coord_cartesian(xlim=c(0, 4000)) +
+  #scale_color_discrete(name='Patch change method') +
+  xlab('Number of AS path changes') +
+  ylab('Precision') +
+  theme_bw() +
+  theme(text=element_text(size=16), legend.position='top',
+        axis.text.x=element_text(size=12, angle = 25, hjust=0.5, vjust=.5))
+print(g)
+dev.off()
+ggplotly(g)
+
+
+# * Find probes have AS change number between 100 200 and precision < 0.1 ----
+temp <- overview_poisson[pch_method == 'as_path_change' & 
+                   trace_len > 30000 & probe %in% one_probe_as & 
+                   as.numeric(tp)+as.numeric(fp) > 100 &
+                   as.numeric(tp)+as.numeric(fp) < 200 &
+                   precision < 0.1]
+temp1 <- probe.meta[probe_id %in% temp$probe]
+temp2 <- probe.meta[probe_id %in% one_probe_as & country_code == 'NL']
+temp3 <- overview_poisson[probe %in% temp2$probe_id & pch_method == 'as_path_change']
+
+
+# * IFP change NUMBER and PRECISION ----
+bks = c(0, 20, 50, 80, 100, 150, 200, 250, 300, 350)
+pdf('../data/graph/ifp_ch_precision_poisson.pdf', width = 4, height=4)
+g <- ggplot(overview_poisson[pch_method == 'ifp_bck' & trace_len > 30000 & probe %in% one_probe_as],
+            aes(x=(as.numeric(tp)+as.numeric(fp)), y=as.numeric(precision))) + 
+  geom_point(aes(text=paste("Probe:", probe)), size=1, alpha=.3, col='#e41a1c') +
+  #geom_smooth() +
+  geom_density2d()+
+  scale_x_continuous(breaks = bks) +
+  coord_cartesian(ylim=c(0, 1)) +
+  xlab('Number of IFP changes') +
+  ylab('Precision') +
+  theme_bw() +
+  theme(text=element_text(size=16), legend.position='top',
+        axis.text.x=element_text(size=12, angle = 25, hjust=0.5, vjust=.5))
+print(g)
+dev.off()
+ggplotly(g)
+
+pdf('../data/graph/ifp_ch_vs_ip_path.pdf', width = 4, height=4)
+g <- ggplot(merge(overview_poisson[pch_method == 'ifp_bck' & probe %in% one_probe_as & trace_len > 30000],
+                  topo_stat, by='probe'),
+            aes(y=as.numeric(tp) + as.numeric(fp), x=ip_path_count)) +
+  geom_point(alpha=.2, col='#e41a1c') +
+  geom_density2d()+
+  scale_x_continuous(trans = log10_trans(), breaks = c(2, 16, 50, 100, 200, 500, 1000)) +
+  scale_y_continuous(breaks = c(0, 20, 50, 80, 100, 150, 200, 250, 300, 350)) +
+  xlab('IP paths per probe') +
+  ylab('Number of IFP changes') +
+  theme_bw() +
+  theme(text=element_text(size=16), legend.position='top',
+        axis.text.x=element_text(size=12, angle = 25, hjust=0.5, vjust=.5))
+print(g)
+dev.off()
+
+pdf('../data/graph/ifp_ch_precision_vs_ip_path.pdf', width = 4, height=4)
+g <- ggplot(merge(overview_np[pch_method == 'ifp_bck' & probe %in% one_probe_as & trace_len > 30000],
+                  topo_stat, by='probe'),
+            aes(y=as.numeric(precision), x=ip_path_count)) +
+  geom_point(alpha=.2, col='#e41a1c') +
+  geom_density2d()+
+  scale_x_continuous(trans = log10_trans(), breaks = c(2, 16, 50, 100, 200, 500, 1000)) +
+  coord_cartesian(ylim=c(0,1)) +
+  xlab('IP paths per probe') +
+  ylab('Precision') +
+  theme_bw() +
+  theme(text=element_text(size=16), legend.position='top',
+        axis.text.x=element_text(size=12, angle = 25, hjust=0.5, vjust=.5))
+print(g)
+dev.off()
+
+topo_stat[probe %in% one_probe_as & ip_path_count > 16, length(probe)] /topo_stat[probe %in% one_probe_as, length(probe)]
+
+quantile(topo_stat[probe %in% one_probe_as, ip_path_count], prob = c(.05, .1, .25, .5, .75, .95, 1), type=8)
+
+g <- ggplot(merge(overview_np[pch_method == 'ifp_bck' & probe %in% one_probe_as & trace_len > 30000],
+                  topo_stat, by='probe')) +
+  geom_point(aes(y=(as.numeric(tp)+as.numeric(fp)), x=ip_path_count, col=as.numeric(precision), text=paste("Probe:", probe)), alpha=.3) +
+  scale_x_continuous(trans = log10_trans(), breaks = c(16, 50, 100, 200, 500, 1000))
+g
+ggplotly(g)
+
+# * IFP change precision gain with BCK and SPLIT ----
+# the precision gain of split is very marginal. should skip it in paper
+bck_gain_poisson <- overview_poisson[pch_method=='ifp_bck', as.numeric(precision)]/overview_poisson[pch_method=='ifp_simple', as.numeric(precision)]
+bck_gain_np <- overview_np[pch_method=='ifp_bck', as.numeric(precision)]/overview_np[pch_method=='ifp_simple', as.numeric(precision)]
+ifp_gain <- data.table(probe = overview_poisson[pch_method=='ifp_split',probe], 
+                       trace_len = overview_np[pch_method=='ifp_split',trace_len],
+                       Poisson=bck_gain_poisson, NP=bck_gain_np)
+ifp_gain <- melt(ifp_gain, measure.vars = c('Poisson', 'NP'), variable.name = 'method', value.name = "precision_gain")
+
+pdf('../data/graph/ifp_bck_ch_precision_gain_cdf.pdf', width = 6, height=3)
+g <- ggplot(ifp_gain[trace_len > 30000 & probe %in% one_probe_as]) + 
+  stat_ecdf(aes(precision_gain, col=method)) +
+  scale_color_discrete(name='') +
+  xlab('Precision ratio: IFP bck/IFP fwd') +
   ylab('CDF') +
   theme(text=element_text(size=16), legend.position='top')
 print(g)
 dev.off()
 
-# * path change NUMBER and PRECISION ----
-g <- ggplot(overview_poisson[pch_method == 'as_path_change' & trace_len > 30000]) + 
-  geom_point(aes(x=(as.numeric(tp)+as.numeric(fp)), y=as.numeric(precision), text=paste("Probe:", probe))) +
-  geom_smooth(aes(x=(as.numeric(tp)+as.numeric(fp)), y=as.numeric(precision))) +
-  #scale_x_continuous(trans = log10_trans(), breaks = bks) +
-  #coord_cartesian(xlim=c(0, 200)) +
-  #coord_cartesian(xlim=c(0, 4000)) +
-  #scale_color_discrete(name='Patch change method') +
-  xlab('Number of path changes per probe') +
-  ylab('CDF') +
-  theme(text=element_text(size=16), legend.position='top')
-print(g)
-ggplotly(g)
-
-# * IFP change precision gain with BCK and SPLIT ----
-bck_gain <- overview_poisson[pch_method=='ifp_bck', as.numeric(precision)]/overview_poisson[pch_method=='ifp_simple', as.numeric(precision)]
-split_gain <- overview_poisson[pch_method=='ifp_split', as.numeric(precision)]/overview_poisson[pch_method=='ifp_simple', as.numeric(precision)]
-ifp_gain <- data.table(probe=overview_poisson[pch_method=='ifp_split',probe], bck_gain=bck_gain, split_gain=split_gain)
-ifp_gain <- melt(ifp_gain, measure.vars = c('bck_gain', 'split_gain'), variable.name = 'method', value.name = "gain")
-g <- ggplot(ifp_gain) + 
-  stat_ecdf(aes(gain, col=method)) +
-  scale_x_continuous(trans = log2_trans())
-  #geom_density(aes(gain, col=method))
-g
-
-# fine probes with most AS path changes, and see what happens
-many.asch <- overview_np[pch_method=='as_path_change', .(count=as.numeric(tp)+as.numeric(fp)), by=probe][order(count, decreasing = T)]
-# remove private unknwo etc in AS path
-# collerate again with RTT change see what happens
-
-
-
-# compare the RTT change CHARACTER discovered by the three method ----
+# * compare the RTT change CHARACTER discovered by the three method ----
 write.table(rtt_view[pch_method=='ifp_bck',.(cpt_method, delta_median, delta_std)], file = 'cpt_chara_np.csv', sep = ';', row.names = F)
 write.table(rtt_view[pch_method=='ifp_bck',.(cpt_method, delta_median, delta_std)], file = 'cpt_chara_normal.csv', sep = ';', row.names = F)
 write.table(rtt_view[pch_method=='ifp_bck',.(cpt_method, delta_median, delta_std)], file = 'cpt_chara_poisson.csv', sep = ';', row.names = F)
@@ -514,6 +675,8 @@ g <- ggplot(rtt_bind[delta_median < 1000 & delta_std < 500],
 print(g)
 dev.off()
 
+
+# * lAlV, lAhV, hAlV, hAhV ----
 cpt_m = 'cpt_poisson&MBIC'
 rtt_bind[cpt_method==cpt_m & delta_median < 5 & delta_std < 5, length(delta_std)]/rtt_bind[cpt_method==cpt_m, length(delta_std)]
 rtt_bind[cpt_method==cpt_m & delta_median < 5 & delta_std > 50, length(delta_std)]/rtt_bind[cpt_method==cpt_m, length(delta_std)]
@@ -544,7 +707,11 @@ rtt_m[delta_median < 1000 & delta_std < 500, length(ch_id)]/nrow(rtt_m)
 rtt_m[delta_median < 1000 & delta_std < 500 & path_ch_m == TRUE, length(ch_id)]/rtt_m[delta_median < 1000 & delta_std < 500, length(ch_id)]
 rtt_m[delta_median < 1000 & delta_std < 500 & path_ch_m == FALSE, length(ch_id)]/rtt_m[delta_median < 1000 & delta_std < 500, length(ch_id)]
 rtt_m[delta_median < 1000 & delta_std < 500 & path_ch_m == TRUE & matched_as == 'True', length(ch_id)]/rtt_m[delta_median < 1000 & delta_std < 500 & path_ch_m == TRUE, length(ch_id)]
-rtt_m[path_ch_m == TRUE & matched_as == 'True', length(ch_id)]/rtt_m[path_ch_m == TRUE, length(ch_id)]
+
+rtt_m[path_ch_m == TRUE & matched_as == 'True', length(ch_id)]/nrow(rtt_m)
+rtt_m[path_ch_m == TRUE & ! matched_as == 'True', length(ch_id)]/nrow(rtt_m)
+rtt_m[!path_ch_m == TRUE,  length(ch_id)]/nrow(rtt_m)
+
 # the proportion of RTT changes matched to AS path change is kind of high, find out why
 
 # * where does cpt low level high variance change come from ----
@@ -568,6 +735,10 @@ quantile(both.high$count, probs = .95)
 # investigated 12385, many timeout measurements
 # investigated 26326 with np, many timeout segment, when with valid value, the variance is big
 
+
+# * find probes potentially with large amplitude congestions ----
+rtt_m[delta_median > 30 & delta_median < 150 & delta_std > 5 & delta_std < 50 & path_ch_m == FALSE, .(count=length(ch_id)), by=probe][order(count, decreasing = T)][20:30]
+
 # * cleaning criteria ----
 # valide data length > 30000
 # top 5% probe with most high variance change
@@ -578,11 +749,24 @@ c <- as.numeric(both.high[count < 100, probe])
 
 scope <- intersect(a, intersect(b, c))
 
+# * median RTT distribution per probe ----
+pdf('../data/graph/rtt_median_density.pdf', width = 6, height=3)
+g <- ggplot(rtt.pingv4[valid_length>30000]) + 
+  geom_density(aes(as.integer(median))) +
+  scale_x_continuous(breaks=c(0, 30, 50, 80, 100, 150, 200, 250, 300, 400, 800, 100)) + 
+  xlab('Median RTT per probe') +
+  ylab('Density estimation') +
+  theme(text=element_text(size=16),
+        axis.text.x=element_text(angle = 90, hjust=0))
+print(g)
+dev.off()
+
+
 # * median diff ~ std diff ----
 pdf('../data/graph/rtt_ch_median_vs_std_np_scope.pdf', width = 8, height=4)
 xbk = c(5, 10, 20, 50, 100, 200, 500, 1000)
 ybk = c(5, 10, 20, 50, 100, 200, 500)
-g <- ggplot(rtt_m[delta_median < 1000 & delta_std < 500 & probe %in% scope], 
+g <- ggplot(rtt_m[delta_median < 1000 & delta_std < 500 & probe %in% one_probe_as], 
             aes(x=delta_median, y=delta_std)) +
   scale_x_continuous(trans = log2_trans(), breaks=xbk) +
   scale_y_continuous(trans = log2_trans(), breaks=ybk) +
@@ -596,7 +780,6 @@ g <- ggplot(rtt_m[delta_median < 1000 & delta_std < 500 & probe %in% scope],
 print(g)
 dev.off()
 
-
 # * median vs std for matched ones ----
 
 pdf('../data/graph/rtt_ch_matched_median_vs_std_np_scope.pdf', width = 8, height=4)
@@ -605,7 +788,7 @@ facet_labeller <- function(variable,value){
 }
 xbk = c(5, 10, 20, 50, 100, 200, 500, 1000)
 ybk = c(5, 10, 20, 50, 100, 200, 500)
-g <- ggplot(rtt_m[path_ch_m == TRUE & delta_median < 1000 & delta_std < 500 & probe %in% scope], 
+g <- ggplot(rtt_m[path_ch_m == TRUE & delta_median < 1000 & delta_std < 500 & probe %in% one_probe_as], 
             aes(x=delta_median, y=delta_std, 50)) +
   scale_x_continuous(trans = log2_trans(), breaks=xbk) +
   scale_y_continuous(trans = log2_trans(), breaks=ybk) +
