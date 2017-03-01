@@ -99,7 +99,7 @@ def evaluation_window(fact, detection, window=0, return_match=False):
 
 
 def evaluation_window_adp(fact, detection, window=0, return_match=False):
-    """ a variation of evaluation_window() which is adapted to parse cost matrix generated from fact and detection.
+    """ a variation of evaluation_window() which is adapted to sparse cost matrix generated from fact and detection.
 
     If fact or detection contain many elements, say more than one hundred. It will take a significant amount of time,
     even with hungarian algo, to compute the min cost maximum matching.
