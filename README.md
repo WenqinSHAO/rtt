@@ -11,11 +11,11 @@ be used in a standalone manner, decoupled from the context of this project.
 
 We provide a dataset of real RTT time series collected form RIPE Atlas, manually labelled with moments of change.
 It serves as ground truth in method evaluation.
-Tools for manual labelling are as available at 
+Tools for manual labelling are available at 
 * Visual inspection tool for very long RTT traces [https://github.com/WenqinSHAO/rtt_visual.git](https://github.com/WenqinSHAO/rtt_visual.git).
 * Generator of synthetic RTT time series [https://github.com/WenqinSHAO/rtt_gen.git](https://github.com/WenqinSHAO/rtt_gen.git).
  
-Finally, we'd appreciate a lot your participation in enriching the labelled dataset.
+We'd appreciate a lot your participation in enriching the labelled dataset.
 
 # Documentations
 * [Collect measurement from RIPE Atlas](docs/data_collection.md)
