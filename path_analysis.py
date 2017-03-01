@@ -66,11 +66,12 @@ def path(fn, pb_meta, data_dir, path_alyz_dir):
                     enhanced_path = pt.bridge(enhanced_path)  # remove holes if possible
                     if is_v4:  # for v4 traceroute, detect IXP
                         enhanced_path = pt.insert_ixp(enhanced_path)
-                    asn_path = [hop.get_asn() for hop in enhanced_path if hop.type != db.AddrType.Others]  # construct asn path
+                    asn_path = [hop.get_asn() for hop in enhanced_path]  # construct asn path
                     asn_path = pt.remove_repeated_asn(asn_path)  # remove continuously repeated asn
                     asn_path_seq.append(asn_path)
                 # detect asn path changes
-                asn_path_change = pt.as_path_change(asn_path_seq)
+                asn_path_change = pt.as_path_change_cl(asn_path_seq)
+                asn_path_change_ixp = pt.as_path_change_ixp(asn_path_seq)
                 # detect ip forwarding pattern change with three different methods
                 ifp_change_simple = pt.ifp_change(pt.ip_path_change_simple(paris_id_seq, ip_path_seq, 16),
                                                   len(paris_id_seq))
@@ -83,7 +84,8 @@ def path(fn, pb_meta, data_dir, path_alyz_dir):
                                   ifp_simple=ifp_change_simple,
                                   ifp_bck=ifp_change_bck_ext,
                                   ifp_split=ifp_change_split,
-                                  as_path_change=asn_path_change)
+                                  as_path_change=asn_path_change,
+                                  as_path_change_ixp=asn_path_change_ixp)
 
     with open(os.path.join(path_alyz_dir, fn), 'w') as fp:
         json.dump(output, fp)

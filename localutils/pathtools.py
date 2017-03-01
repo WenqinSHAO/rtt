@@ -210,6 +210,48 @@ def as_path_change(paths):
     return change
 
 
+def as_path_change_cl(paths):
+    """" mark the idx at which there is surely an AS path change not related to timeout, private address etc.
+
+    Args:
+        paths (list of list of ASN): [[ASN,...],...]
+
+    Returns:
+        list of int, index of change is set to 1, otherwise 0
+    """
+    change = [0] * len(paths)
+    for idx, path in enumerate(paths):
+        if idx > 0:
+            if len(path) > 0 and len(paths[idx-1]) > 0:
+                if path[-1] == paths[idx-1][-1] and path != paths[idx-1]:  # exclude reachability issue
+                    diff_as = set(path) ^ set(paths[idx-1])
+                    if len(diff_as) > 0 and all([type(i) is int for i in diff_as]):  # all difference is a valid ASN
+                        change[idx] = 1
+    return change
+
+
+def as_path_change_ixp(paths):
+    """" mark the idx at which there is surely an AS path change related to IXP.
+
+    Args:
+        paths (list of list of ASN): [[ASN,...],...]
+
+    Returns:
+        list of int, index of change is set to 1, otherwise 0
+    """
+    change = [0] * len(paths)
+    for idx, path in enumerate(paths):
+        if idx > 0:
+            if len(path) > 0 and len(paths[idx-1]) > 0:
+                if path[-1] == paths[idx-1][-1] and path != paths[idx-1]:  # exclude reachability issue
+                    diff_as = set(path) ^ set(paths[idx-1])
+                    if len(diff_as) > 0 and \
+                            any([type(i) is str and not (i == 'private' and i == 'Invalid IP address') for i in diff_as]):
+                        change[idx] = 1
+    return change
+
+
+
 class IpForwardingPattern:
     """IpForwardingPattern describes the forwarding paths for all the paris-id in joining one destination
 
