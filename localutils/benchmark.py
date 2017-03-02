@@ -329,15 +329,16 @@ def character(trace, fact):
         fact (list of int): index of trace for events to be detected
 
     Return:
-        list of tuple [(delta median, delta std ),...]
+        list of tuple [(delta median, delta std, seg_len, seg_med, seg_std),...]
     """
     fact = [0] + fact + [len(trace)]
     seg = [(fact[i], fact[i + 1]) for i in range(len(fact) - 1)]
+    seg_len = np.array([i[1]-i[0] for i in seg])
     seg_median = [np.median(trace[i[0]:i[1]]) for i in seg]
     seg_median_diff = np.abs(np.array(seg_median[1:]) - np.array(seg_median[:-1]))
     seg_std = [np.std(trace[i[0]:i[1]]) for i in seg]
     seg_std_diff = np.abs(np.array(seg_std[1:]) - np.array(seg_std[:-1]))
-    return zip(seg_median_diff, seg_std_diff)
+    return zip(seg_median_diff, seg_std_diff, seg_len[1:], seg_median[1:], seg_std[1:])
 
 
 def weighting(trace, fact):

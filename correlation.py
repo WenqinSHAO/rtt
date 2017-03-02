@@ -14,7 +14,7 @@ from localutils import benchmark as bch, misc as ms
 
 METHOD = ['cpt_normal', 'cpt_np', 'cpt_poisson']
 PENALTY = ["MBIC"]
-PATH_CH_M = ['as_path_change', 'ifp_simple', 'ifp_bck', 'ifp_split']
+PATH_CH_M = ['as_path_change', 'as_path_change_ixp', 'ifp_simple', 'ifp_bck']
 WINDOW = 1800  # interval of traceroute measurement
 
 
@@ -32,7 +32,6 @@ def worker(rtt_ch_fn, path_ch_fn, rtt_ch_m):
         overview (list of tuple): from each probe, what's the overall correlation between RTT change and path change
     """
     rtt_change_res = []
-    path_change_res = []
     overview = []
 
     try:  # load rtt analysis
@@ -40,14 +39,14 @@ def worker(rtt_ch_fn, path_ch_fn, rtt_ch_m):
             rtt_ch = json.load(fp)
     except IOError as e:
         logging.error(e)
-        return [], [], []
+        return [], []
 
     try:  # load path analysis
         with open(path_ch_fn, 'r') as fp:
             path_ch = json.load(fp)
     except IOError as e:
         logging.error(e)
-        return [], [], []
+        return [], []
 
     pbs = set(rtt_ch.keys()) & set(path_ch.keys())
     logging.info("%d probes in common in %s (%d) and %s (%d)" % (len(pbs), rtt_ch_fn, len(rtt_ch),
@@ -64,49 +63,42 @@ def worker(rtt_ch_fn, path_ch_fn, rtt_ch_m):
         rtt_trace = rtt_ch_rec.get('min_rtt')
         rtt_tstp = rtt_ch_rec.get('epoch')
         path_tstp = path_ch_rec.get('epoch')
-        # try all combination of rtt change detection and path change detection
-        for rtt_m, path_m in [(x, y) for x in rtt_ch_m for y in PATH_CH_M]:
-            # index if change in trace, tstp
+        # for each rtt_ch_method try all path detections methods
+        for rtt_m in rtt_ch_m:
             rtt_ch_index = [i for i, v in enumerate(rtt_ch_rec.get(rtt_m)) if v == 1]
-            path_ch_index = [i for i, v in enumerate(path_ch_rec.get(path_m)) if v == 1]
-            # the tstp value given the indexes
             rtt_ch_tstp = [rtt_tstp[i] for i in rtt_ch_index]
-            path_ch_tstp = [path_tstp[i] for i in path_ch_index]
-            # the median diff and std diff of each rtt change
             rtt_ch_character = bch.character(rtt_trace, rtt_ch_index)
-            # the matching between rtt change and path timestamps
-            cr = bch.evaluation_window_adp(rtt_ch_tstp, path_ch_tstp, WINDOW, return_match=True)
-            # the index of rtt_ch_index/path_ch_index in matching
-            rtt_to_path = {i[0]: i[1] for i in cr.get('match')}
-            path_to_rtt = {i[1]: i[0] for i in cr.get('match')}
-            # record each rtt change
+            match_dic = {i: [] for i in PATH_CH_M}
+            dis_dic = {i: [] for i in PATH_CH_M}
+            for path_m in PATH_CH_M:
+                path_ch_index = [i for i, v in enumerate(path_ch_rec.get(path_m)) if v == 1]
+                path_ch_tstp = [path_tstp[i] for i in path_ch_index]
+                cr = bch.evaluation_window_adp(rtt_ch_tstp, path_ch_tstp, WINDOW, return_match=True)
+                # record the overview of matching between rtt_m and path_m
+                overview.append((int(pb), len(rtt_trace), rtt_m, len(rtt_ch_index), path_m, len(path_ch_index),
+                                 cr['tp'], cr['fp'], cr['fn'],
+                                 cr['precision'], cr['recall'], cr['dis']))
+                rtt_to_path = {i[0]: i[1] for i in cr.get('match')}
+                #path_to_rtt = {i[1]: i[0] for i in cr.get('match')}
+                # for each single RTT change check the match with path change
+                for i, ch in enumerate(rtt_ch_index):
+                    if i in rtt_to_path:
+                        have_match = True
+                        dis = abs(rtt_ch_tstp[i] - path_ch_tstp[rtt_to_path.get(i)])
+                    else:
+                        have_match = False
+                        dis = None
+                    match_dic[path_m].append(have_match)
+                    dis_dic[path_m].append(dis)
+            # combine the matching with different path change into oneline
             for i, ch in enumerate(rtt_ch_index):
-                if i in rtt_to_path:
-                    have_match = True
-                    dis = abs(rtt_ch_tstp[i] - path_ch_tstp[rtt_to_path.get(i)])
-                else:
-                    have_match = False
-                    dis = None
-                rtt_change_res.append((int(pb), rtt_m, path_m, i, ch, rtt_ch_character[i][0], rtt_ch_character[i][1], have_match, dis))
-            # record each path change
-            for i, ch in enumerate(path_ch_index):
-                if i in path_to_rtt:
-                    have_match = True
-                    rchm = path_to_rtt.get(i)
-                    dis = abs(rtt_ch_tstp[rchm] - path_ch_tstp[i])
-                    delta_m, delta_s = rtt_ch_character[rchm]
-                else:
-                    have_match = False
-                    dis = None
-                    delta_m = None
-                    delta_s = None
-                path_change_res.append((int(pb), rtt_m, path_m, i, ch, have_match, dis, delta_m, delta_s))
-            # record the overview of matching between rtt_m and path_m
-            overview.append((int(pb), len(rtt_trace), rtt_m, len(rtt_ch_index), path_m, len(path_ch_index),
-                             cr['tp'], cr['fp'], cr['fn'],
-                            cr['precision'], cr['recall'], cr['dis']))
+                entry = [int(pb), i, ch]
+                entry.extend(rtt_ch_character[i])
+                for pm in PATH_CH_M:
+                    entry.extend([match_dic[pm][i], dis_dic[pm][i]])
+                rtt_change_res.append(entry)
 
-    return rtt_change_res, path_change_res, overview
+    return rtt_change_res, overview
 
 
 def worker_wrapper(args):
@@ -188,12 +180,10 @@ def main():
             # save result to csv in data dir
             file_suf = rtt_ch_m.split('&')[0]
             rtt_change_res = []
-            path_change_res = []
             overview = []
 
-            for r, p, o in res:
+            for r, o in res:
                 rtt_change_res.append(r)
-                path_change_res.append(p)
                 overview.append(o)
 
             with open(os.path.join(data_dir, 'cor_overview_%s_%s.csv' % (tid, file_suf)), 'w') as fp:
@@ -205,16 +195,12 @@ def main():
                         fp.write(";".join([str(i) for i in line]) + '\n')
 
             with open(os.path.join(data_dir, 'cor_rtt_ch_%s_%s.csv' % (tid, file_suf)), 'w') as fp:
-                fp.write(';'.join(['probe', 'cpt_method', 'pch_method', 'i', 'cpt_idx',
-                                   'delta_median', 'delta_std', 'matched', 'dis']) + '\n')
+                header = ['probe', 'i', 'cpt_idx',
+                          'delta_median', 'delta_std', 'seg_len', 'seg_median', 'seg_std']
+                for pm in PATH_CH_M:
+                    header.extend(['%s_match' % pm, '%s_dis' % pm])
+                fp.write(';'.join(header) + '\n')
                 for ck in rtt_change_res:
-                    for line in ck:
-                        fp.write(";".join([str(i) for i in line]) + '\n')
-
-            with open(os.path.join(data_dir, 'cor_path_ch_%s_%s.csv' % (tid, file_suf)), 'w') as fp:
-                fp.write(';'.join(['probe', 'cpt_method', 'pch_method', 'i', 'pch_idx',
-                                   'matched', 'dis', 'delta_median', 'delta_std']) + '\n')
-                for ck in path_change_res:
                     for line in ck:
                         fp.write(";".join([str(i) for i in line]) + '\n')
 
