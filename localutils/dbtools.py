@@ -140,6 +140,7 @@ class AsnDB:
             pyasn_util_download.py --latest
             pyasn_util_convert.py --single <Downloaded RIB File> <ipasn_db_file_name>
         _reserved (SubnetTree or None): stores the reserved IP blocks
+        reserved_des (set or None): the set of reserved IP blocks description
     """
     def __init__(self, main, reserved=None):
         """load from file
@@ -155,16 +156,19 @@ class AsnDB:
 
         if reserved is not None:
             self._reserved = SubnetTree.SubnetTree()
+            self.reserved_des = set()
             try:
                 with open(reserved, 'r') as fp:
                     for line in fp:
                         if not line.startswith('#') and len(line.split()) >= 2:
                             pref, desc = [i.strip() for i in line.split()]
                             self._reserved.insert(pref, desc)
+                            self.reserved_des.add(desc)
             except IOError as e:
                 logging.critical("Encountered error when initializing IP to ASN DB: %s" % e)
         else:
             self._reserved = None
+            self.reserved_des = None
 
     def lookup(self, addr):
         """look up the ASN or description of given IP address

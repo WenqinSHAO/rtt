@@ -246,10 +246,9 @@ def as_path_change_ixp(paths):
                 if path[-1] == paths[idx-1][-1] and path != paths[idx-1]:  # exclude reachability issue
                     diff_as = set(path) ^ set(paths[idx-1])
                     if len(diff_as) > 0 and \
-                            any([type(i) is str and not (i == 'private' and i == 'Invalid IP address') for i in diff_as]):
+                            any([type(i) is str and not (i == 'Invalid IP address' or (ip2asn.reserved_des is not None and i in ip2asn.reserved_des)) for i in diff_as]):
                         change[idx] = 1
     return change
-
 
 
 class IpForwardingPattern:
