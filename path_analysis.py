@@ -70,8 +70,8 @@ def path(fn, pb_meta, data_dir, path_alyz_dir):
                     asn_path = pt.remove_repeated_asn(asn_path)  # remove continuously repeated asn
                     asn_path_seq.append(asn_path)
                 # detect asn path changes
-                asn_path_change = pt.as_path_change_cl(asn_path_seq)
-                asn_path_change_ixp = pt.as_path_change_ixp(asn_path_seq)
+                asn_path_change = pt.as_path_change_cs(asn_path_seq)
+                asn_path_change_ixp = pt.as_path_change_ixp_cs(asn_path_seq)
                 # detect ip forwarding pattern change with three different methods
                 ifp_change_simple = pt.ifp_change(pt.ip_path_change_simple(paris_id_seq, ip_path_seq, 16),
                                                   len(paris_id_seq))

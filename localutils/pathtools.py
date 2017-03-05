@@ -230,6 +230,43 @@ def as_path_change_cl(paths):
     return change
 
 
+def as_path_change_cs(paths):
+    """ mark the idx at which where AS path change happens
+    AS path change is where the FIRST different AS hops are both valid public ASN hop
+    avoid changes due to timeout, private address, reachability issues
+
+    Args:
+        paths (list of list of ASN): [[ASN,...],...]
+
+    Returns:
+        list of int, index of change is set to 1, otherwise 0
+    """
+    change = [0] * len(paths)
+    for idx, path in enumerate(paths):
+        if idx > 0:
+            if len(path) > 0 and len(paths[idx-1]) > 0:
+                for hop_pair in zip(path, paths[idx-1]):
+                    if hop_pair[0] != hop_pair[1]:
+                        if type(hop_pair[0]) is int and type(hop_pair[1]) is int:
+                            change[idx] = 1
+                        break
+    return change
+
+
+def is_ixp_asn_hop(x):
+    """ check the whether return value of db.Addr.get_asn() is an IXP or not
+    if the type(x) is str and the string is not Invalid IP or reserved IP, than it must be an IXP name
+
+    Args:
+        x (int, string, None)
+
+    Returns:
+        bool
+    """
+    return type(x) is str and not \
+        (x == 'Invalid IP address' or ip2asn.reserved_des is None or x in ip2asn.reserved_des)
+
+
 def as_path_change_ixp(paths):
     """" mark the idx at which there is surely an AS path change related to IXP.
 
@@ -246,8 +283,31 @@ def as_path_change_ixp(paths):
                 if path[-1] == paths[idx-1][-1] and path != paths[idx-1]:  # exclude reachability issue
                     diff_as = set(path) ^ set(paths[idx-1])
                     if len(diff_as) > 0 and \
-                            any([type(i) is str and not (i == 'Invalid IP address' or (ip2asn.reserved_des is not None and i in ip2asn.reserved_des)) for i in diff_as]):
+                            any([is_ixp_asn_hop(i) for i in diff_as]):
                         change[idx] = 1
+    return change
+
+
+def as_path_change_ixp_cs(paths):
+    """ mark the idx at which where path change is an IXP change
+    IXP change is where the FIRST different AS hops involve at least one IXP
+    if the previous AS hop differs already, it is not longer a pure IXP change
+
+    Args:
+        paths (list of list of ASN): [[ASN,...],...]
+
+    Returns:
+        list of int, index of change is set to 1, otherwise 0
+    """
+    change = [0] * len(paths)
+    for idx, path in enumerate(paths):
+        if idx > 0:
+            if len(path) > 0 and len(paths[idx-1]) > 0:
+                for hop_pair in zip(path, paths[idx-1]):
+                    if hop_pair[0] != hop_pair[1]:
+                        if any([is_ixp_asn_hop(i) for i in hop_pair]):
+                            change[idx] = 1
+                        break
     return change
 
 
