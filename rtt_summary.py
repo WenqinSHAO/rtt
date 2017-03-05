@@ -45,14 +45,14 @@ def rtt(f):
             rtts = rec.get('min_rtt', None)
             raw_len = len(rtts) # can be 0
             pos_rtt = [i for i in rtts if (0 < i < TIMEOUT)]
-            all_rtt = [i if (0 < i < TIMEOUT) else TIMEOUT for i in rtts]
+            #all_rtt = [i if (0 < i < TIMEOUT) else TIMEOUT for i in rtts]
             if pos_rtt:
                 reached_len = len(pos_rtt) # if empty array is given, returns nan of type numpy.float64
                 mean_ = np.mean(pos_rtt)
                 mid = np.median(pos_rtt)
                 min_ = np.min(pos_rtt)
                 max_ = np.max(pos_rtt)
-                std_ = np.std(all_rtt)
+                std_ = np.std(pos_rtt)
             else:
                 raw_len = reached_len = mean_ = mid = min_ = max_ = std_ = None
         elif 'path' in rec:
