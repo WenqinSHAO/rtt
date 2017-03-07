@@ -22,10 +22,10 @@ def cpt_normal(x, penalty="MBIC", minseglen=2):
         the actually return from R changepoint detection is the last index of a segment.
         since the R indexing starts from 1, the return naturally become the beginning of segment.
     """
+    #x = [i if i > 0 else 1e3 for i in x]
     return [int(i) for i in changepoint.cpts(changepoint.cpt_meanvar(FloatVector(x),
                                                                      test_stat='Normal', method='PELT',
                                                                      penalty=penalty, minseglen=minseglen))]
-
 
 
 def cpt_np(x, penalty="MBIC", minseglen=2):
@@ -86,5 +86,55 @@ def cpt_poisson_naive(x, penalty="MBIC", minseglen=2):
     x = np.rint(x)
     x = [i if i > 0 else 1e3 for i in x]
     return [int(i) for i in changepoint.cpts(changepoint.cpt_meanvar(IntVector(x), test_stat='Poisson',
+                                                                     method='PELT', penalty=penalty,
+                                                                     minseglen=minseglen))]
+
+
+def cpt_exp(x, penalty='MBIC', minseglen=2):
+    """changepoint detection with Exponential distribution as test statistic
+
+        non-negative value is required
+        negative value is set to a very large RTT, 1e3.
+
+        Args:
+            x (list of numeric type): timeseries to be handled
+            penalty (string): possible choices "None", "SIC", "BIC", "MBIC", "AIC", "Hannan-Quinn"
+
+        Returns:
+            list of int: beginning of new segment in python index, that is starting from 0;
+            the actually return from R changepoint detection is the last index of a segment.
+            since the R indexing starts from 1, the return naturally become the beginning of segment.
+        """
+    try:
+        base = np.min([i for i in x if i > 0])
+    except ValueError:  # if no positive number if x, set base to 0
+        base = 0
+    x = [i-base if i > 0 else 1e3 for i in x]
+    return [int(i) for i in changepoint.cpts(changepoint.cpt_meanvar(FloatVector(x), test_stat='Exponential',
+                                                                     method='PELT', penalty=penalty,
+                                                                     minseglen=minseglen))]
+
+
+def cpt_gamma(x, penalty='MBIC', minseglen=2):
+    """changepoint detection with Gamma distribution as test statistic
+
+        positive value is required
+        negative value is set to a very large RTT, 1e3.
+
+        Args:
+            x (list of numeric type): timeseries to be handled
+            penalty (string): possible choices "None", "SIC", "BIC", "MBIC", "AIC", "Hannan-Quinn"
+
+        Returns:
+            list of int: beginning of new segment in python index, that is starting from 0;
+            the actually return from R changepoint detection is the last index of a segment.
+            since the R indexing starts from 1, the return naturally become the beginning of segment.
+        """
+    try:
+        base = np.min([i for i in x if i > 0])
+    except ValueError:  # if no positive number if x, set base to 0
+        base = 0
+    x = [(i-base + 0.1) if i > 0 else 1e3 for i in x]
+    return [int(i) for i in changepoint.cpts(changepoint.cpt_meanvar(FloatVector(x), test_stat='Gamma',
                                                                      method='PELT', penalty=penalty,
                                                                      minseglen=minseglen))]
