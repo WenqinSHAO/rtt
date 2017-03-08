@@ -22,7 +22,7 @@ def cpt_normal(x, penalty="MBIC", minseglen=2):
         the actually return from R changepoint detection is the last index of a segment.
         since the R indexing starts from 1, the return naturally become the beginning of segment.
     """
-    #x = [i if i > 0 else 1e3 for i in x]
+    x = [i if i > 0 else 1e3 for i in x]
     return [int(i) for i in changepoint.cpts(changepoint.cpt_meanvar(FloatVector(x),
                                                                      test_stat='Normal', method='PELT',
                                                                      penalty=penalty, minseglen=minseglen))]
@@ -40,6 +40,7 @@ def cpt_np(x, penalty="MBIC", minseglen=2):
             the actually return from R changepoint detection is the last index of a segment.
             since the R indexing starts from 1, the return naturally become the beginning of segment.
     """
+    x = [i if i > 0 else 1e3 for i in x]
     return [int(i) for i in changepoint.cpts(changepoint_np.cpt_np(FloatVector(x), penalty=penalty, minseglen=minseglen))]
 
 
