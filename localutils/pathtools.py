@@ -263,8 +263,19 @@ def is_ixp_asn_hop(x):
     Returns:
         bool
     """
-    return type(x) is str and not \
-        (x == 'Invalid IP address' or ip2asn.reserved_des is None or x in ip2asn.reserved_des)
+    return type(x) is str and not is_bad_hop(x)
+
+
+def is_bad_hop(x):
+    """ check the whether return value of db.Addr.get_asn() is an description string of reserved IP blocks or invalid IP address
+
+    Args:
+        x (int, string, None)
+
+    Returns:
+        bool
+    """
+    return x == 'Invalid IP address' or ip2asn.reserved_des is None or x in ip2asn.reserved_des
 
 
 def as_path_change_ixp(paths):
@@ -305,7 +316,7 @@ def as_path_change_ixp_cs(paths):
             if len(path) > 0 and len(paths[idx-1]) > 0:
                 for hop_pair in zip(path, paths[idx-1]):
                     if hop_pair[0] != hop_pair[1]:
-                        if any([is_ixp_asn_hop(i) for i in hop_pair]):
+                        if all([not is_bad_hop(i) for i in hop_pair]) and any([type(i) is str for i in hop_pair]):
                             change[idx] = 1
                         break
     return change
