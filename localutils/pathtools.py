@@ -302,7 +302,7 @@ def as_path_change_ixp(paths):
 def as_path_change_ixp_cs(paths):
     """ mark the idx at which where path change is an IXP change
     IXP change is where the FIRST different AS hops involve at least one IXP
-    if the previous AS hop differs already, it is not longer a pure IXP change
+    if the previous AS hop differs already, it is not longer an IXP change
 
     Args:
         paths (list of list of ASN): [[ASN,...],...]
@@ -317,6 +317,29 @@ def as_path_change_ixp_cs(paths):
                 for hop_pair in zip(path, paths[idx-1]):
                     if hop_pair[0] != hop_pair[1]:
                         if all([not is_bad_hop(i) for i in hop_pair]) and any([type(i) is str for i in hop_pair]):
+                            change[idx] = 1
+                        break
+    return change
+
+
+def as_path_change_ixp_pu(paths):
+    """ mark the idx at which where path change is an pure IXP change
+    pure IXP change is where the FIRST different AS hops involve IXP in both AS paths
+    if the previous AS hop differs already, it is not longer a pure IXP change
+
+    Args:
+        paths (list of list of ASN): [[ASN,...],...]
+
+    Returns:
+        list of int, index of change is set to 1, otherwise 0
+    """
+    change = [0] * len(paths)
+    for idx, path in enumerate(paths):
+        if idx > 0:
+            if len(path) > 0 and len(paths[idx-1]) > 0:
+                for hop_pair in zip(path, paths[idx-1]):
+                    if hop_pair[0] != hop_pair[1]:
+                        if all([is_ixp_asn_hop(i) for i in hop_pair]):
                             change[idx] = 1
                         break
     return change
