@@ -10,18 +10,16 @@ All the methods proposed in this project, such as scoring method in evaluation, 
 be used in a standalone manner, decoupled from the context of this project.
 
 We provide a dataset of real RTT time series collected form RIPE Atlas, manually labelled with moments of change.
-It serves as ground truth in method evaluation.
+It serves as ground truth in change detection method evaluation.
 Tools for manual labelling are available at 
 * Visual inspection tool for very long RTT traces [https://github.com/WenqinSHAO/rtt_visual.git](https://github.com/WenqinSHAO/rtt_visual.git).
 * Generator of synthetic RTT time series [https://github.com/WenqinSHAO/rtt_gen.git](https://github.com/WenqinSHAO/rtt_gen.git).
  
-We'd appreciate a lot your participation in enriching the labelled dataset.
-
 # Documentations
-* [Collect measurement from RIPE Atlas](docs/data_collection.md)
+* [Collect measurements from RIPE Atlas](docs/data_collection.md)
 * [Collect auxiliary data](docs/auxiliary_data.md)
 * [Summarize RTT characters for each Atlas Probe](docs/rtt_summary.md)
 * [Detect IP and AS path changes](docs/path_analysis.md)
-* [Evaluate changepoint detection method for RTT time series](docs/eval_cpt.md)
 * [Detect changes in RTT time series](docs/rtt_cpt.md)
-* [Correlation RTT changes and path changes](docs/corr.md)
+* [Evaluate changepoint detection methods](docs/eval_cpt.md)
+* [Correlate RTT changes and path changes](docs/corr.md)

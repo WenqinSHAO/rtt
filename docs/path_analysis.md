@@ -106,11 +106,11 @@ Our method is:
   2. else, check if an IP belongs to one of [prefixes used by certain IXP](auxiliary_data.md#ixp-related-data); (get info on the IXP);
   3. else, check if an IP belongs to one of [reserved IP blocks](auxiliary_data.md#reserved-ip-blocks); (get on the reserved purpose);
   4. else, check if an IP is announced by certain AS according to [BGP RIBs](auxiliary_data.md#routeview-bgp-ribs); (get info on ASN);  
-2. once step 1 is down for each hop of a path, we remove hops in reserved IP blocks if they are directly surrounded by ASNs with know relationship
+2. once step 1 is done for each hop of a path, we remove hops in reserved IP blocks if they are directly surrounded by ASNs with know relationship
 according to [CAIDA AS relationship inference](auxiliary_data.md#caida-as-relationship-inference);
 (IXP prefixes are regarded transparent while IXP interco follows the ASN of the AS that uses it) 
 3. detect the presence of IXP for IPv4 traceroutes (as IXP related info is only available in IPv4) using heuristics proposed by [traIXroute](https://github.com/gnomikos/traIXroute.git);
-4. removed continuous repeated ASN in path.
+4. removed continuously repeated ASN in path.
 
 NOTE: [traIXroute](https://github.com/gnomikos/traIXroute.git) does not try to remove reserved IPs even when it is possible.
 This matters when such hop is next to IXP related addresses and prevents the detection.

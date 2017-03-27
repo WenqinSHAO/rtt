@@ -11,7 +11,7 @@ __path_analysis.log__ will be generated for debugging uses.
 
 Four functions are provides in [localutils/changedetect.py](../localutils/changedetect.py) to perform changepoint detection
 for time series in a standalone manner.
-The implementation is basically a wrapper over its original R functions provided in [changepoint](https://cran.r-project.org/web/packages/changepoint/changepoint.pdf) 
+The implementation is basically a wrapper of its original R functions provided in [changepoint](https://cran.r-project.org/web/packages/changepoint/changepoint.pdf) 
 and [changepoint.np](https://cran.r-project.org/web/packages/changepoint.np/changepoint.np.pdf) packages.
 For more details of each function, please check the docstring.
 
