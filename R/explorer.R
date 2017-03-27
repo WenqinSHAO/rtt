@@ -26,7 +26,7 @@ data.dir <- file.path(main.dir, config$dir$data)
 # set to data folder
 # since all the data cannot be stored locally, data on the server can be store in a specific folder
 setwd(data.dir)
-setwd("/Users/wenqin/Documents/internet_rtt/remote_data/")
+#setwd("/Users/wenqin/Documents/internet_rtt/remote_data/")
 
 # Probe meta; the information concerning the probe
 probe.meta <- data.table(read.csv2("pb.csv", sep=';', dec='.', stringsAsFactors = F))
@@ -207,11 +207,6 @@ ggplotly(g)
 
 #  case study ----
 case = 10460
-# 10460 is an interesting case in the sense that:
-# 1/ traceroute rtt mean << ping rtt mean
-# 2/ traceroute rtt std >> ping rtt std
-# It turns out to be that traceroute when through some paths will way much smaller RTT than ping does.
-# One more interesting finding is that the first half of traceroute is not reachable.
 case = 21600
 case = 10663
 case = 21328
@@ -309,17 +304,17 @@ empty = lapply(asn_path, write, sprintf('asn_path_%d.txt', case), append=TRUE, n
 #write.table(ts.pingv4, file=sprintf('%d.csv',case), sep=';', row.names = F)
 
 pdf(sprintf('../data/graph/case_%d.pdf', case), width = 8, height=2.5)
-g<- ggplot(ts.pingv4[3000:4000], aes(x= anytime(epoch), y=rtt)) + 
+g<- ggplot(ts.pingv4[200:1000], aes(x= anytime(epoch), y=rtt)) + 
   geom_point() +
   #geom_line(col='grey') +
   #geom_point(aes(text=paste("Index:", seq_len(nrow(ts.pingv4[1:100])))), size=.8) +
   geom_vline(xintercept = as.numeric(anytime(ts.pingv4[cp==1,epoch])), col='red', size=.9, alpha=1)+
   geom_vline(xintercept = as.numeric(anytime(ts.pingv4[cp_np==1,epoch])), col='green', size=1.5, alpha=.8, linetype=2)+
   geom_vline(xintercept = as.numeric(anytime(ts.tracev4[as_path_change==1,epoch])), col='orange', size=2.5, alpha=.5) +
-  geom_vline(xintercept = as.numeric(anytime(ts.tracev4[ifp_bck==1,epoch])), col='violet', size=2.5, alpha=.5) +
+  #geom_vline(xintercept = as.numeric(anytime(ts.tracev4[ifp_bck==1,epoch])), col='violet', size=2.5, alpha=.5) +
   geom_vline(xintercept = as.numeric(anytime(ts.tracev4[as_path_change_ixp==1,epoch])), col='#08519c', size=2.5, alpha=.5) +
   #scale_color_manual(name='', values = c(Poisson='red', NP='green', AS='orange')) +
-  scale_x_datetime(date_breaks = "12 hours", date_labels='%Y-%m-%d %Hh') +
+  scale_x_datetime(date_breaks = "6 hours", date_labels='%Y-%m-%d %Hh') +
   xlab('Time (UTC)')+
   ylab('RTT (ms)')+
   theme(text=element_text(size=16),
@@ -371,6 +366,8 @@ res_window <- read.table('eval_art.csv', sep=';', header = T)
 # method eval on human labeled real traces
 res_window <- read.table('../data/cpt_eval_real.csv', sep=';', header = T, na.strings = 'None', stringsAsFactors = F)
 # the following can be simplified with data.table gramma;
+res_window <- read.table('../data/eval_real_gamma.csv', sep=';', header = T, na.strings = 'None', stringsAsFactors = F)
+
 res_window$fallout <- res_window$fp / (res_window$len - res_window$changes)
 res_window$f1 <- with(res_window, 2*precision*recall/(precision+recall))
 res_window$f05 <- with(res_window, 1.25*precision*recall/(0.25*precision+recall))
@@ -420,10 +417,47 @@ g <- ggplot(melt(res_window[setting %in% c('cpt_normal&MBIC', 'cpt_poisson&MBIC'
 print(g)
 dev.off()
 
+
+lab = c('precision' = 'Precision', 'recall'='Recall', 'score'='Recall_w', 'f2'='F2', 'f2_score'='F2')
+res_window[,':='(setting = paste(method, penalty, sep = '&'))]
+res_window[tp==0, ':=' (precision=0, recall=0, score=0, f2=0, f2_score=0, setting=0)]
+pdf('../data/graph/real_eval.pdf', width = 12, height=4)
+g <- ggplot(melt(res_window[setting %in% c('cpt_normal&MBIC', 'cpt_poisson&MBIC', 'cpt_poisson_naive&AIC',
+                                           'cpt_exp&AIC', 'cpt_np&MBIC'), .(file, precision, recall, score, f2, f2_score, setting)], 
+                 id.vars = c('file', 'setting'), measure.vars = c('precision', 'score', 'f2_score'))) + 
+  stat_ecdf(aes(value, col=setting)) +
+  #scale_color_brewer(type='qual') +
+  scale_color_manual(name='', values = c('#7fc97f','#fdc086','#666666','#386cb0','#f0027f')) +
+  guides(colour = guide_legend(nrow=1, override.aes = list(size=3))) +
+  coord_cartesian(xlim=c(0,1)) +
+  facet_wrap(~variable, nrow=1, labeller = as_labeller(lab)) +
+  xlab('Values') +
+  ylab('CDF') +
+  theme_bw() +
+  theme(text=element_text(size=16), legend.position='top', legend.key=element_blank(), legend.text = element_text(size=12) )
+print(g)
+dev.off()
+
+
 g <- ggplot(res_window) + 
   stat_ecdf(aes(f2_score, col=penalty)) +
   facet_wrap(~method)
 g
+
+g <- ggplot(melt(res_window[setting %in% c('cpt_gamma%1&AIC', 'cpt_gamma%10&MBIC', 'cpt_gamma%20&MBIC',
+                                           'cpt_gamma%30&MBIC', 'cpt_gamma%50&MBIC',
+                                           'cpt_gamma%adpt&MBIC', 'cpt_np&MBIC', 'cpt_poisson&MBIC'), 
+                            .(file, precision, recall, score, f2, f2_score, setting)], 
+                 id.vars = c('file', 'setting'), measure.vars = c('precision', 'score', 'f2_score'))) + 
+  stat_ecdf(aes(value, col=setting)) +
+  scale_color_brewer(type='qual') +
+  guides(colour = guide_legend(nrow=1, override.aes = list(size=3))) +
+  coord_cartesian(xlim=c(0,1)) +
+  facet_wrap(~variable, nrow=1, labeller = as_labeller(lab)) +
+  xlab('Values') +
+  ylab('CDF') +
+  theme(text=element_text(size=16), legend.position='top', legend.key=element_blank(), legend.text = element_text(size=12) )
+print(g)
 
 
 # RTT and path change and correlation ----
@@ -598,14 +632,14 @@ print(g)
 dev.off()
 
 # * * How RTT detection sensitivity changes with different overall RTT std ----
-pdf('../data/graph/cpt_diff_vs_std.pdf', width = 6, height=4)
-bxs = c(-500, -100, -50, -10, 0, 10, 50, 100, 500, 1000, 4000)
+pdf('../data/graph/cpt_diff_vs_std.pdf', width = 6.5, height=3.5)
+bxs = c(-500, -100, -50, -10, 0, 10, 50, 100, 500, 2000, 4000)
 g <- ggplot(as_tp_cmp[probe %in% one_probe_as], aes(y=log_mod(diff_cpt), x=as.numeric(std))) + 
   geom_point(aes(text=paste("Probe:", probe)), alpha =.4, col='#fb6a4a') + 
   geom_density2d() +
   scale_y_continuous(breaks = log_mod(bxs), labels=bxs)+
-  scale_x_continuous(trans=log_trans(), breaks= c(1, 5, 10, 50, 100, 200))+
-  ylab('RTT cpt difference (Poisson - NP)') +
+  scale_x_continuous(trans=log_trans(), breaks= c(1, 3, 5, 10, 20, 50, 100, 200))+
+  ylab('RTT cpt number diff\n (Poisson - NP)') +
   xlab('RTT std') +
   theme_bw() +
   theme(text=element_text(size=16))
