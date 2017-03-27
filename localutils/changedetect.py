@@ -116,7 +116,7 @@ def cpt_exp(x, penalty='MBIC', minseglen=2):
                                                                      minseglen=minseglen))]
 
 
-def cpt_gamma(x, penalty='MBIC', minseglen=2):
+def cpt_gamma(x, penalty='MBIC', minseglen=2, shape=100):
     """changepoint detection with Gamma distribution as test statistic
 
         positive value is required
@@ -138,4 +138,4 @@ def cpt_gamma(x, penalty='MBIC', minseglen=2):
     x = [(i-base + 0.1) if i > 0 else 1e3 for i in x]
     return [int(i) for i in changepoint.cpts(changepoint.cpt_meanvar(FloatVector(x), test_stat='Gamma',
                                                                      method='PELT', penalty=penalty,
-                                                                     minseglen=minseglen))]
+                                                                     minseglen=minseglen, shape=shape))]
